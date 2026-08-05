@@ -1,0 +1,30 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                  🚌 CIVA TRANSPORTES 🚌                      ║
+║              TRANSPORTE INTERPROVINCIAL                      ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  🎫 BOLETO DE VIAJE N°: B-20260805005733                            ║
+║                                                              ║
+║  ─── DATOS DEL PASAJERO ───                                  ║
+║  👤 NOMBRE: ramos flores accion                      ║
+║  📋 DNI:    74939606                                 ║
+║  📞 TELÉFONO: No registrado                            ║
+║                                                              ║
+║  ─── DATOS DEL VIAJE ───                                    ║
+║  🚌 ORIGEN:   Lima                                     ║
+║  🏁 DESTINO:  Lima                                     ║
+║  💺 ASIENTO:  23                                       ║
+║  📅 FECHA:    05/08/2026 00:57                         ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  ✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨                    ║
+║                                                              ║
+║  📌 Presenta este boleto al abordar el bus                  ║
+║  ⏰ Llegar con 30 minutos de anticipación                   ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+    

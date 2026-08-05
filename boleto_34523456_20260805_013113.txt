@@ -1,0 +1,30 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                  🚌 CIVA TRANSPORTES 🚌                      ║
+║              TRANSPORTE INTERPROVINCIAL                      ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  🎫 BOLETO DE VIAJE N°: B-20260805013113                            ║
+║                                                              ║
+║  ─── DATOS DEL PASAJERO ───                                  ║
+║  👤 NOMBRE: elias cruz paulino                       ║
+║  📋 DNI:    34523456                                 ║
+║  📞 TELÉFONO: No registrado                            ║
+║                                                              ║
+║  ─── DATOS DEL VIAJE ───                                    ║
+║  🚌 ORIGEN:   Lima                                     ║
+║  🏁 DESTINO:  Lima                                     ║
+║  💺 ASIENTO:  No asignado                              ║
+║  📅 FECHA:    05/08/2026 01:31                         ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  ✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨                    ║
+║                                                              ║
+║  📌 Presenta este boleto al abordar el bus                  ║
+║  ⏰ Llegar con 30 minutos de anticipación                   ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+    
