@@ -1,24 +1,207 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from PIL import Image, ImageTk
 import os
 import sys
+import hashlib
+import json
+
+# ==============================================
+# SISTEMA DE USUARIOS Y CONFIGURACIÓN
+# ==============================================
+
+USUARIOS = {
+    "admin@civa.com": {
+        "nombre": "Administrador",
+        "rol": "Administrador",
+        "clave_hash": "e10adc3949ba59abbe56e057f20f883e"
+    },
+    "empleado@civa.com": {
+        "nombre": "Empleado Civa",
+        "rol": "Empleado",
+        "clave_hash": "827ccb0eea8a706c4c34a16891f84e7b"
+    }
+}
+
+ARCHIVO_RECORDAR = "recordar_usuario.json"
+
+def cifrar_clave(clave):
+    return hashlib.md5(clave.encode()).hexdigest()
+
+def guardar_usuario_recordar(correo):
+    with open(ARCHIVO_RECORDAR, "w") as f:
+        json.dump({"correo": correo}, f)
+
+def cargar_usuario_recordar():
+    if os.path.exists(ARCHIVO_RECORDAR):
+        with open(ARCHIVO_RECORDAR, "r") as f:
+            datos = json.load(f)
+            return datos.get("correo", "")
+    return ""
+
+def cambiar_contraseña(ventana_padre, correo_actual):
+    ventana = tk.Toplevel(ventana_padre)
+    ventana.title("Cambiar Contraseña")
+    ventana.geometry("400x300")
+    ventana.resizable(False, False)
+    ventana.transient(ventana_padre)
+    ventana.grab_set()
+
+    tk.Label(ventana, text="Cambiar Contraseña", font=("Arial", 14, "bold")).pack(pady=15)
+    marco = tk.Frame(ventana)
+    marco.pack(pady=10)
+
+    tk.Label(marco, text="Contraseña actual:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", pady=5)
+    entrada_actual = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
+    entrada_actual.grid(row=1, column=0, pady=5)
+
+    tk.Label(marco, text="Nueva contraseña:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", pady=5)
+    entrada_nueva = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
+    entrada_nueva.grid(row=3, column=0, pady=5)
+
+    tk.Label(marco, text="Repetir contraseña:", font=("Arial", 10)).grid(row=4, column=0, sticky="w", pady=5)
+    entrada_repetir = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
+    entrada_repetir.grid(row=5, column=0, pady=5)
+
+    def confirmar():
+        actual = entrada_actual.get().strip()
+        nueva = entrada_nueva.get().strip()
+        repetida = entrada_repetir.get().strip()
+
+        if USUARIOS[correo_actual]["clave_hash"] != cifrar_clave(actual):
+            messagebox.showerror("Error", "Contraseña actual incorrecta")
+            return
+        if len(nueva) < 4:
+            messagebox.showwarning("Aviso", "La contraseña debe tener al menos 4 caracteres")
+            return
+        if nueva != repetida:
+            messagebox.showerror("Error", "Las contraseñas no coinciden")
+            return
+
+        USUARIOS[correo_actual]["clave_hash"] = cifrar_clave(nueva)
+        messagebox.showinfo("✅ Éxito", "Contraseña cambiada correctamente")
+        ventana.destroy()
+
+    tk.Button(ventana, text="Guardar", command=confirmar,
+              font=("Arial", 10, "bold"), bg="#28a745", fg="white",
+              padx=20, pady=8, relief="flat").pack(pady=15)
+
+
+def mostrar_pantalla_login(al_ingresar):
+    ventana_login = tk.Tk()
+    ventana_login.title("Inicio de Sesión - Sistema Logístico Civa")
+    ventana_login.geometry("400x420")
+    ventana_login.resizable(False, False)
+
+    ancho, alto = 400, 420
+    x = (ventana_login.winfo_screenwidth() // 2) - (ancho // 2)
+    y = (ventana_login.winfo_screenheight() // 2) - (alto // 2)
+    ventana_login.geometry(f"{ancho}x{alto}+{x}+{y}")
+
+    tk.Label(ventana_login, text="Sistema Logístico Civa", 
+             font=("Arial", 16, "bold")).pack(pady=(40, 10))
+    tk.Label(ventana_login, text="Inicia sesión para continuar", 
+             font=("Arial", 10)).pack(pady=(0, 30))
+
+    marco = tk.Frame(ventana_login)
+    marco.pack(pady=10)
+
+    tk.Label(marco, text="Correo electrónico:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", pady=5)
+    correo_guardado = cargar_usuario_recordar()
+    entrada_correo = tk.Entry(marco, width=35, font=("Arial", 11))
+    entrada_correo.grid(row=1, column=0, pady=5)
+    if correo_guardado:
+        entrada_correo.insert(0, correo_guardado)
+
+    tk.Label(marco, text="Contraseña:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", pady=(15, 5))
+    entrada_contraseña = tk.Entry(marco, width=35, show="•", font=("Arial", 11))
+    entrada_contraseña.grid(row=3, column=0, pady=5)
+
+    recordar_var = tk.BooleanVar(value=bool(correo_guardado))
+    tk.Checkbutton(marco, text="Recordar mi correo", variable=recordar_var, 
+                   font=("Arial", 9)).grid(row=4, column=0, sticky="w", pady=10)
+
+    def verificar():
+        correo = entrada_correo.get().strip()
+        clave = entrada_contraseña.get().strip()
+
+        if correo not in USUARIOS:
+            messagebox.showerror("Error", "Correo o contraseña incorrectos")
+            return
+
+        if USUARIOS[correo]["clave_hash"] == cifrar_clave(clave):
+            ventana_login.destroy()
+            if recordar_var.get():
+                guardar_usuario_recordar(correo)
+            elif os.path.exists(ARCHIVO_RECORDAR):
+                os.remove(ARCHIVO_RECORDAR)
+
+            nombre = USUARIOS[correo]["nombre"]
+            rol = USUARIOS[correo]["rol"]
+            respuesta = messagebox.askyesno("✅ Bienvenido", 
+                f"¡Hola {nombre}!\nRol: {rol}\n\n¿Deseas cambiar tu contraseña ahora?")
+
+            if respuesta:
+                def continuar():
+                    cambiar_contraseña(None, correo)
+                    al_ingresar()
+                ventana_login.after(100, continuar)
+            else:
+                al_ingresar()
+        else:
+            messagebox.showerror("Error", "Correo o contraseña incorrectos")
+
+    tk.Button(ventana_login, text="Iniciar Sesión", command=verificar,
+              font=("Arial", 11, "bold"), bg="#0056b3", fg="white",
+              padx=30, pady=10, relief="flat").pack(pady=20)
+
+    ventana_login.mainloop()
+
+
+# ==============================================
+# IMPORTACIONES DE TUS MÓDULOS
+# ==============================================
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from estructuras.cola import Cola
-from modelos.chofer import Chofer
-from modelos.bus import Bus
-from modelos.ruta import Ruta
-from modelos.asiento import Asiento
-from algoritmos.asignacion_choferes import asignar_chofer, enviar_a_descanso, liberar_de_descanso
-from algoritmos.asignacion_buses import registrar_bus, asignar_bus
-from algoritmos.dijkstra import calcular_ruta_mas_corta
+try:
+    from estructuras.cola import Cola
+    from modelos.chofer import Chofer
+    from modelos.bus import Bus
+    from modelos.ruta import Ruta
+    from modelos.asiento import Asiento
+    from algoritmos.asignacion_choferes import asignar_chofer, enviar_a_descanso, liberar_de_descanso
+    from algoritmos.asignacion_buses import registrar_bus, asignar_bus
+    from algoritmos.dijkstra import calcular_ruta_mas_corta
+except Exception as e:
+    Cola = None
+    Chofer = Bus = Ruta = Asiento = None
+    asignar_chofer = enviar_a_descanso = liberar_de_descanso = None
+    registrar_bus = asignar_bus = calcular_ruta_mas_corta = None
 
+
+# ==============================================
+# CLASE PASAJERO
+# ==============================================
+
+class Pasajero:
+    def __init__(self, dni, nombre, telefono="", destino="", asiento=0):
+        self.dni = dni
+        self.nombre = nombre
+        self.telefono = telefono
+        self.destino = destino
+        self.asiento = asiento
+
+    def __str__(self):
+        return f"DNI: {self.dni} | {self.nombre} | Asiento: {self.asiento}"
+
+
+# ==============================================
+# SISTEMA PRINCIPAL COMPLETO
+# ==============================================
 
 class SistemaLogisticoCiva:
-    def __init__(self, root):
-        self.root = root
+    def __init__(self):
+        self.root = tk.Tk()
         self.root.title("Sistema Logístico Civa - Transporte Interprovincial")
         self.root.geometry("1000x700")
 
@@ -27,13 +210,14 @@ class SistemaLogisticoCiva:
         self.color_texto = "#ffffff"
         self.root.configure(bg=self.color_fondo)
 
-        self.cola_choferes_disponibles = Cola()
-        self.cola_choferes_descanso = Cola()
-        self.cola_buses = Cola()
+        if Cola:
+            self.cola_choferes_disponibles = Cola()
+            self.cola_choferes_descanso = Cola()
+            self.cola_buses = Cola()
         self.asientos = []
         self.historial = []
+        self.pasajeros = []
 
-        # Lista de ciudades disponibles
         self.ciudades = ["Lima", "Huaral", "Ica", "Nazca", "Arequipa", "Trujillo", "Chiclayo"]
 
         self.grafo_rutas = {
@@ -46,12 +230,12 @@ class SistemaLogisticoCiva:
             "Arequipa": [("Nazca", 450)]
         }
 
-        tk.Label(root, text="Sistema Logístico Civa\nTransporte Interprovincial",
+        tk.Label(self.root, text="Sistema Logístico Civa\nTransporte Interprovincial",
                  font=("Arial", 14, "bold"),
                  bg=self.color_fondo, fg=self.color_texto).pack(pady=10)
 
         self.crear_pestañas()
-        self.area_principal = tk.Frame(root, bg=self.color_pestaña, width=900, height=550)
+        self.area_principal = tk.Frame(self.root, bg=self.color_pestaña, width=900, height=550)
         self.area_principal.pack(pady=10)
         self.area_principal.pack_propagate(False)
 
@@ -67,13 +251,14 @@ class SistemaLogisticoCiva:
             ("Buses", self.cargar_pantalla_buses),
             ("Choferes", self.cargar_pantalla_choferes),
             ("Asientos", self.cargar_pantalla_asientos),
+            ("👤 Pasajeros", self.cargar_pantalla_pasajeros),
             ("Reportes", self.cargar_pantalla_reportes),
             ("Historial", self.cargar_pantalla_historial)
         ]
         for i, (nombre, funcion) in enumerate(pestañas):
             btn = tk.Button(frame_tabs, text=nombre, font=("Arial", 11),
                             bg=self.color_pestaña, fg=self.color_texto,
-                            padx=20, pady=5, relief="flat",
+                            padx=15, pady=5, relief="flat",
                             command=lambda f=funcion: f())
             btn.grid(row=0, column=i, padx=2)
 
@@ -83,8 +268,10 @@ class SistemaLogisticoCiva:
 
     def cargar_pantalla_inicio(self):
         self.limpiar_area_principal()
-        ruta_imagen = os.path.join(os.path.dirname(__file__), "..", "assets", "fondo.jpg")
+        carpeta_actual = os.path.dirname(__file__)
+        ruta_imagen = os.path.join(carpeta_actual, "assets", "fondo.jpg")
         if os.path.exists(ruta_imagen):
+            from PIL import Image, ImageTk
             img = Image.open(ruta_imagen)
             img = img.resize((900, 550), Image.Resampling.LANCZOS)
             self.fondo = ImageTk.PhotoImage(img)
@@ -121,6 +308,9 @@ class SistemaLogisticoCiva:
         resultado.pack(pady=20)
 
         def calcular():
+            if not calcular_ruta_mas_corta:
+                messagebox.showinfo("Aviso", "Módulo de rutas no disponible")
+                return
             o = origen_var.get()
             d = destino_var.get()
             ruta, dist = calcular_ruta_mas_corta(self.grafo_rutas, o, d)
@@ -159,8 +349,12 @@ class SistemaLogisticoCiva:
         servicio_combo.grid(row=1, column=3, padx=5, pady=5)
         lista = tk.Text(self.area_principal, width=80, height=10, font=("Arial", 10))
         lista.pack(pady=10)
+
         def actualizar_lista():
             lista.delete("1.0", tk.END)
+            if not Cola or not self.cola_buses:
+                lista.insert(tk.END, "⚠️ Archivos de buses no disponibles\n")
+                return
             lista.insert(tk.END, "=== Buses Registrados ===\n")
             temp = Cola()
             while not self.cola_buses.esta_vacia():
@@ -169,13 +363,21 @@ class SistemaLogisticoCiva:
                 temp.encolar(bus)
             while not temp.esta_vacia():
                 self.cola_buses.encolar(temp.desencolar())
+
         def registrar():
+            if not Bus or not registrar_bus:
+                messagebox.showinfo("Aviso", "Módulo de buses no disponible")
+                return
             bus = Bus(cod_entry.get(), placa_entry.get(), int(cap_entry.get()), servicio_var.get())
             registrar_bus(self.cola_buses, bus)
             self.historial.append(f"✅ Bus registrado: {bus.codigo} | Placa: {bus.placa}")
             messagebox.showinfo("✅", f"Bus {bus.codigo} registrado")
             actualizar_lista()
+
         def asignar():
+            if not asignar_bus:
+                messagebox.showinfo("Aviso", "Módulo de buses no disponible")
+                return
             bus = asignar_bus(self.cola_buses, servicio_var.get())
             if bus:
                 self.historial.append(f"🚌 Bus asignado: {bus.codigo} para servicio {bus.tipo_servicio}")
@@ -184,6 +386,7 @@ class SistemaLogisticoCiva:
                 self.historial.append(f"⚠️ Intento asignar bus: sin disponibilidad")
                 messagebox.showinfo("Aviso", "No hay buses disponibles")
             actualizar_lista()
+
         tk.Button(frame, text="Registrar Bus", command=registrar, bg="#3498db", fg="white", padx=10, pady=5).grid(row=2, column=0, columnspan=2, pady=10)
         tk.Button(frame, text="Asignar Bus", command=asignar, bg="#f39c12", fg="white", padx=10, pady=5).grid(row=2, column=2, columnspan=2, pady=10)
         actualizar_lista()
@@ -210,12 +413,20 @@ class SistemaLogisticoCiva:
         ultimo = [None]
         resultado = tk.Label(self.area_principal, text="", font=("Arial", 12), fg="white", bg=self.color_pestaña)
         resultado.pack(pady=15)
+
         def registrar():
+            if not Chofer:
+                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
+                return
             chofer = Chofer(dni_entry.get(), nom_entry.get(), licencia_var.get())
             self.cola_choferes_disponibles.encolar(chofer)
             self.historial.append(f"✅ Chofer registrado: {chofer.nombre} | DNI: {chofer.dni}")
             messagebox.showinfo("✅", f"Chofer {chofer.nombre} registrado")
+
         def asignar():
+            if not asignar_chofer:
+                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
+                return
             ultimo[0] = asignar_chofer(self.cola_choferes_disponibles)
             if ultimo[0]:
                 resultado.config(text=f"✅ Asignado: {ultimo[0].nombre} | Estado: {ultimo[0].estado}")
@@ -223,13 +434,20 @@ class SistemaLogisticoCiva:
             else:
                 resultado.config(text="❌ No hay choferes disponibles")
                 self.historial.append("⚠️ Intento asignar chofer: sin disponibilidad")
+
         def descansar():
+            if not enviar_a_descanso:
+                return
             if ultimo[0]:
                 enviar_a_descanso(ultimo[0], self.cola_choferes_descanso)
                 self.historial.append(f"🛌 Chofer en descanso: {ultimo[0].nombre}")
                 resultado.config(text=f"🛌 {ultimo[0].nombre} enviado a descanso")
                 ultimo[0] = None
+
         def liberar():
+            if not liberar_de_descanso:
+                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
+                return
             c = liberar_de_descanso(self.cola_choferes_descanso, self.cola_choferes_disponibles)
             if c:
                 resultado.config(text=f"🔄 {c.nombre} vuelve disponible")
@@ -237,6 +455,7 @@ class SistemaLogisticoCiva:
             else:
                 resultado.config(text="❌ Nadie en descanso")
                 self.historial.append("⚠️ Intento liberar chofer: nadie en descanso")
+
         tk.Button(frame, text="Registrar", command=registrar, bg="#2ecc71", fg="white", padx=10).grid(row=2, column=0, pady=10)
         tk.Button(frame, text="Asignar", command=asignar, bg="#3498db", fg="white", padx=10).grid(row=2, column=1, pady=10)
         tk.Button(frame, text="Enviar a Descanso", command=descansar, bg="#9b59b6", fg="white", padx=10).grid(row=2, column=2, pady=10)
@@ -246,7 +465,7 @@ class SistemaLogisticoCiva:
         self.limpiar_area_principal()
         tk.Label(self.area_principal, text="💺 GESTIÓN DE ASIENTOS",
                  font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=10)
-        if not self.asientos:
+        if not self.asientos and Asiento:
             self.asientos = [Asiento(i+1, 35) for i in range(40)]
         frame_controles = tk.Frame(self.area_principal, bg=self.color_pestaña)
         frame_controles.pack(pady=5)
@@ -361,15 +580,159 @@ class SistemaLogisticoCiva:
         self.caja_mensajes.insert(tk.END, f"Ocupados:     {ocupados}\n")
         self.caja_mensajes.see(tk.END)
 
+    # ==============================================
+    # PANTALLA DE PASAJEROS
+    # ==============================================
+    def cargar_pantalla_pasajeros(self):
+        self.limpiar_area_principal()
+        tk.Label(self.area_principal, text="👤 REGISTRO DE PASAJEROS",
+                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=15)
+
+        frame_form = tk.Frame(self.area_principal, bg=self.color_pestaña)
+        frame_form.pack(pady=10)
+
+        tk.Label(frame_form, text="DNI:", fg="white", bg=self.color_pestaña, font=("Arial", 11)).grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        entrada_dni = tk.Entry(frame_form, font=("Arial", 11), width=15)
+        entrada_dni.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(frame_form, text="Nombre Completo:", fg="white", bg=self.color_pestaña, font=("Arial", 11)).grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        entrada_nombre = tk.Entry(frame_form, font=("Arial", 11), width=30)
+        entrada_nombre.grid(row=0, column=3, padx=5, pady=5)
+
+        tk.Label(frame_form, text="Teléfono:", fg="white", bg=self.color_pestaña, font=("Arial", 11)).grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        entrada_telefono = tk.Entry(frame_form, font=("Arial", 11), width=15)
+        entrada_telefono.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(frame_form, text="Destino:", fg="white", bg=self.color_pestaña, font=("Arial", 11)).grid(row=1, column=2, padx=5, pady=5, sticky="e")
+        destino_var = tk.StringVar()
+        destino_var.set("Arequipa")
+        combo_destino = ttk.Combobox(frame_form, textvariable=destino_var, values=self.ciudades, state="readonly", font=("Arial", 11), width=25)
+        combo_destino.grid(row=1, column=3, padx=5, pady=5)
+
+        tk.Label(frame_form, text="N° Asiento:", fg="white", bg=self.color_pestaña, font=("Arial", 11)).grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        entrada_asiento = tk.Entry(frame_form, font=("Arial", 11), width=15)
+        entrada_asiento.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(self.area_principal, text="📋 Lista de Pasajeros Registrados",
+                 font=("Arial", 12, "bold"), fg="white", bg=self.color_pestaña).pack(pady=(15,5))
+
+        caja_lista = tk.Text(self.area_principal, width=95, height=12, font=("Arial", 10))
+        caja_lista.pack(pady=5)
+
+        def actualizar_lista():
+            caja_lista.delete("1.0", tk.END)
+            if not self.pasajeros:
+                caja_lista.insert(tk.END, "⚠️ No hay pasajeros registrados aún.\n")
+                caja_lista.insert(tk.END, "👉 Registra un pasajero arriba y aparecerá aquí.\n")
+            else:
+                caja_lista.insert(tk.END, f"{'DNI':<12} {'NOMBRE':<30} {'ASIENTO':<10} {'DESTINO':<15} {'TELÉFONO'}\n")
+                caja_lista.insert(tk.END, "-"*80 + "\n")
+                for p in self.pasajeros:
+                    caja_lista.insert(tk.END, f"{p.dni:<12} {p.nombre:<30} {p.asiento:<10} {p.destino:<15} {p.telefono}\n")
+
+        def registrar_pasajero():
+            dni = entrada_dni.get().strip()
+            nombre = entrada_nombre.get().strip()
+            telefono = entrada_telefono.get().strip()
+            destino = destino_var.get()
+
+            if not dni or not nombre:
+                messagebox.showwarning("Aviso", "El DNI y Nombre son obligatorios")
+                return
+            if not dni.isdigit() or len(dni) != 8:
+                messagebox.showwarning("Aviso", "El DNI debe tener 8 dígitos")
+                return
+            if not entrada_asiento.get().strip().isdigit():
+                messagebox.showwarning("Aviso", "Escribe un número de asiento válido")
+                return
+
+            asiento = int(entrada_asiento.get().strip())
+
+            for p in self.pasajeros:
+                if p.dni == dni:
+                    messagebox.showwarning("Aviso", f"Ya existe un pasajero con DNI: {dni}")
+                    return
+
+            pasajero = Pasajero(dni, nombre, telefono, destino, asiento)
+            self.pasajeros.append(pasajero)
+            self.historial.append(f"👤 Pasajero registrado: {nombre} | DNI: {dni} | Asiento {asiento} → {destino}")
+
+            entrada_dni.delete(0, tk.END)
+            entrada_nombre.delete(0, tk.END)
+            entrada_telefono.delete(0, tk.END)
+            entrada_asiento.delete(0, tk.END)
+
+            messagebox.showinfo("✅ Éxito", f"Pasajero registrado:\n{nombre}\nDNI: {dni}")
+            actualizar_lista()
+
+        def buscar_por_dni():
+            dni = entrada_dni.get().strip()
+            if not dni:
+                messagebox.showinfo("🔍 Buscar Pasajero", "Escribe un DNI para buscar")
+                return
+            encontrado = None
+            for p in self.pasajeros:
+                if p.dni == dni:
+                    encontrado = p
+                    break
+            if encontrado:
+                entrada_nombre.delete(0, tk.END)
+                entrada_nombre.insert(0, encontrado.nombre)
+                entrada_telefono.delete(0, tk.END)
+                entrada_telefono.insert(0, encontrado.telefono)
+                entrada_asiento.delete(0, tk.END)
+                entrada_asiento.insert(0, str(encontrado.asiento))
+                messagebox.showinfo("✅ Encontrado", 
+                    f"Nombre: {encontrado.nombre}\nDestino: {encontrado.destino}\nAsiento: {encontrado.asiento}")
+            else:
+                messagebox.showinfo("🔍 Resultado", f"No se encontró pasajero con DNI: {dni}")
+
+        def eliminar_pasajero():
+            dni = entrada_dni.get().strip()
+            if not dni:
+                messagebox.showwarning("Aviso", "Escribe el DNI del pasajero a eliminar")
+                return
+            for i, p in enumerate(self.pasajeros):
+                if p.dni == dni:
+                    nombre = p.nombre
+                    del self.pasajeros[i]
+                    self.historial.append(f"🗑️ Pasajero eliminado: {nombre} | DNI: {dni}")
+                    messagebox.showinfo("✅ Eliminado", f"Pasajero {nombre} eliminado correctamente")
+                    entrada_dni.delete(0, tk.END)
+                    entrada_nombre.delete(0, tk.END)
+                    entrada_telefono.delete(0, tk.END)
+                    entrada_asiento.delete(0, tk.END)
+                    actualizar_lista()
+                    return
+            messagebox.showinfo("Aviso", "Pasajero no encontrado")
+
+        frame_botones = tk.Frame(self.area_principal, bg=self.color_pestaña)
+        frame_botones.pack(pady=10)
+
+        tk.Button(frame_botones, text="✅ Registrar Pasajero", command=registrar_pasajero,
+                  bg="#2ecc71", fg="white", font=("Arial", 11, "bold"), padx=20, pady=8).grid(row=0, column=0, padx=10)
+        tk.Button(frame_botones, text="🔍 Buscar por DNI", command=buscar_por_dni,
+                  bg="#3498db", fg="white", font=("Arial", 11), padx=20, pady=8).grid(row=0, column=1, padx=10)
+        tk.Button(frame_botones, text="🗑️ Eliminar", command=eliminar_pasajero,
+                  bg="#e74c3c", fg="white", font=("Arial", 11), padx=20, pady=8).grid(row=0, column=2, padx=10)
+
+        actualizar_lista()
+
     def cargar_pantalla_reportes(self):
         self.limpiar_area_principal()
         tk.Label(self.area_principal, text="📊 REPORTES DEL SISTEMA",
                  font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
+        
+        buses_cant = self.cola_buses.tamaño() if (Cola and hasattr(self.cola_buses, 'tamaño')) else 'N/A'
+        chof_disp = self.cola_choferes_disponibles.tamaño() if (Cola and hasattr(self.cola_choferes_disponibles, 'tamaño')) else 'N/A'
+        chof_desc = self.cola_choferes_descanso.tamaño() if (Cola and hasattr(self.cola_choferes_descanso, 'tamaño')) else 'N/A'
+
         texto = f"""
-        🚌 Buses disponibles: {len(self.cola_buses)}
-        👨‍✈️ Choferes disponibles: {len(self.cola_choferes_disponibles)}
-        🛌 Choferes en descanso: {len(self.cola_choferes_descanso)}
-        💺 Asientos totales: {len(self.asientos)}
+        🚌 Buses registrados:     {buses_cant}
+        👨‍✈️ Choferes disponibles:  {chof_disp}
+        🛌 Choferes en descanso:   {chof_desc}
+        💺 Asientos totales:       {len(self.asientos)}
+        👤 Pasajeros registrados:  {len(self.pasajeros)}
         📋 Operaciones registradas: {len(self.historial)}
         """
         tk.Label(self.area_principal, text=texto, font=("Arial", 14),
@@ -389,8 +752,8 @@ class SistemaLogisticoCiva:
         if not self.historial:
             caja.insert(tk.END, "- Sistema iniciado correctamente\n")
             caja.insert(tk.END, "- Estructuras de datos cargadas\n")
-            caja.insert(tk.END, "- Algoritmo de Dijkstra listo\n")
-            caja.insert(tk.END, "- Colas de asignación activas\n")
+            caja.insert(tk.END, "- Algoritmo de Rutas listo\n")
+            caja.insert(tk.END, "- Módulo de Pasajeros activo\n")
             caja.insert(tk.END, "\n👉 Realiza acciones y se registrarán aquí automáticamente...\n")
         else:
             caja.insert(tk.END, f"--- {len(self.historial)} operaciones registradas ---\n\n")
@@ -404,6 +767,8 @@ class SistemaLogisticoCiva:
         self.cargar_pantalla_historial()
 
     def cargar_datos_prueba(self):
+        if not Cola or not Chofer or not Bus or not registrar_bus:
+            return
         chofer1 = Chofer("72345678", "Carlos Perez", "A1")
         chofer2 = Chofer("71234567", "Ana Ruiz", "A2")
         self.cola_choferes_disponibles.encolar(chofer1)
@@ -414,8 +779,17 @@ class SistemaLogisticoCiva:
         registrar_bus(self.cola_buses, bus2)
         self.historial.append("✅ Datos de prueba cargados: 2 choferes, 2 buses")
 
+    def ejecutar(self):
+        self.root.mainloop()
+
+
+# ==============================================
+# INICIO DEL PROGRAMA
+# ==============================================
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = SistemaLogisticoCiva(root)
-    root.mainloop()
+    def iniciar_sistema():
+        app = SistemaLogisticoCiva()
+        app.ejecutar()
+
+    mostrar_pantalla_login(iniciar_sistema)
