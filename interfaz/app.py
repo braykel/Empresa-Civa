@@ -4,6 +4,74 @@ from datetime import datetime
 import random
 
 # ==============================================
+# SISTEMA DE INICIO DE SESIÓN
+# ==============================================
+
+# Base de usuarios (IGUAL que tu programa de escritorio)
+USUARIOS = {
+    "admin@civa.com": {
+        "nombre": "Administrador",
+        "rol": "Administrador",
+        "clave": "123456"
+    },
+    "empleado@civa.com": {
+        "nombre": "Empleado Civa",
+        "rol": "Empleado",
+        "clave": "123456"
+    }
+}
+
+# Inicializar estado de sesión
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+if 'usuario' not in st.session_state:
+    st.session_state.usuario = ""
+if 'nombre' not in st.session_state:
+    st.session_state.nombre = ""
+
+# Si NO está autenticado, mostrar pantalla de LOGIN
+if not st.session_state.autenticado:
+    st.markdown("""
+    <div style="text-align: center; padding-top: 40px; padding-bottom: 20px;">
+        <h1 style="color: #38BDF8;">🚌 SISTEMA LOGÍSTICO CIVA</h1>
+        <p style="color: #94A3B8; font-size: 16px;">Inicia sesión para continuar</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("formulario_login"):
+        correo = st.text_input("📧 Correo electrónico", placeholder="admin@civa.com")
+        contrasena = st.text_input("🔑 Contraseña", type="password", placeholder="Escribe tu contraseña")
+        ingresar = st.form_submit_button("🔓 Iniciar Sesión", type="primary")
+
+        if ingresar:
+            correo = correo.strip()
+            contrasena = contrasena.strip()
+
+            if correo in USUARIOS and USUARIOS[correo]["clave"] == contrasena:
+                st.session_state.autenticado = True
+                st.session_state.usuario = correo
+                st.session_state.nombre = USUARIOS[correo]["nombre"]
+                st.success(f"✅ ¡Bienvenido, {USUARIOS[correo]['nombre']}!")
+                st.rerun()  # Recarga y entra al sistema
+            else:
+                st.error("❌ Correo o contraseña incorrectos")
+
+    st.stop()  # Detiene el resto del código hasta que inicie sesión
+
+# ==============================================
+# SI LLEGA AQUÍ → YA ESTÁ AUTENTICADO ✅
+# ==============================================
+
+# Botón para CERRAR SESIÓN
+with st.sidebar:
+    st.markdown(f"👤 **{st.session_state.nombre}**")
+    if st.button("🚪 Cerrar Sesión"):
+        st.session_state.autenticado = False
+        st.session_state.usuario = ""
+        st.session_state.nombre = ""
+        st.rerun()
+
+# ==============================================
 # ESTILO PERSONALIZADO PARA QUE SEA IGUAL A TU PROGRAMA
 # ==============================================
 st.markdown("""
