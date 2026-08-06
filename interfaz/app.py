@@ -4,6 +4,71 @@ from datetime import datetime
 import random
 
 # ==============================================
+# ESTILO PERSONALIZADO PARA QUE SEA IGUAL A TU PROGRAMA
+# ==============================================
+st.markdown("""
+<style>
+    /* Fondo oscuro igual a tu programa */
+    .stApp {
+        background-color: #0F172A;
+    }
+    
+    /* Encabezado principal */
+    h1 {
+        color: #F8FAFC !important;
+        text-align: center;
+        font-weight: bold;
+    }
+    
+    /* Subtítulos */
+    h2, h3 {
+        color: #38BDF8 !important;
+    }
+    
+    /* Botones bonitos */
+    .stButton > button {
+        background-color: #2563EB;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1.5rem;
+        font-weight: bold;
+    }
+    .stButton > button:hover {
+        background-color: #1D4ED8;
+    }
+    
+    /* Tarjetas y cuadros */
+    .stMetric {
+        background-color: #1E293B;
+        border-radius: 10px;
+        padding: 15px;
+        border-left: 4px solid #38BDF8;
+    }
+    
+    /* Barra lateral */
+    section[data-testid="stSidebar"] {
+        background-color: #1E293B;
+    }
+    
+    /* Texto general */
+    .stMarkdown, .stText {
+        color: #E2E8F0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==============================================
+# ENCABEZADO BONITO
+# ==============================================
+st.markdown("""
+<div style="background: linear-gradient(90deg, #1E40AF 0%, #3B82F6 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
+    <h1 style="color: white; margin: 0;">🚌 SISTEMA LOGÍSTICO CIVA</h1>
+    <p style="color: #BFDBFE; font-size: 16px; margin-top: 8px;">Gestión de Pasajes, Rutas y Pasajeros</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ==============================================
 # CONFIGURACIÓN DE LA PÁGINA
 # ==============================================
 
