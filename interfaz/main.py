@@ -202,68 +202,75 @@ def imprimir_boleta(pasajero, origen="Lima", destino="", fecha_viaje=None):
     return filename, contenido
 
 def mostrar_boleta(pasajero, origen="Lima", destino="", fecha_viaje=None):
-    """Muestra el boleto en una ventana emergente con opciones de impresión"""
+    """Muestra el boleto en una ventana emergente con opciones de impresión (Versión Compacta)"""
     from datetime import datetime
     
     if not fecha_viaje:
         fecha_viaje = datetime.now().strftime("%d/%m/%Y %H:%M")
     
+    # ===== VENTANA MÁS PEQUEÑA =====
     ventana = tk.Toplevel()
     ventana.title(f"🎫 Boleto - {pasajero.nombre}")
-    ventana.geometry("600x750")
+    ventana.geometry("480x620")  # Reducido de 600x750 a 480x620
     ventana.resizable(False, False)
     ventana.configure(bg="#1E293B")
     
+    # ===== TÍTULO MÁS COMPACTO =====
     tk.Label(ventana, text="🎫 BOLETO DE VIAJE", 
-             font=("Segoe UI", 18, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=15)
+             font=("Segoe UI", 16, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=10)
     
-    tk.Frame(ventana, bg="#2563EB", height=2, width=500).pack(pady=5)
+    tk.Frame(ventana, bg="#2563EB", height=2, width=400).pack(pady=3)
     
+    # ===== MARCO DEL BOLETO =====
     marco_boleta = tk.Frame(ventana, bg="#0F172A", relief="solid", bd=2)
-    marco_boleta.pack(padx=20, pady=10, fill="both", expand=True)
+    marco_boleta.pack(padx=15, pady=8, fill="both", expand=True)
     
     num_boleta = f"B-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     tk.Label(marco_boleta, text=f"N° BOLETO: {num_boleta}",
-             font=("Segoe UI", 11, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=10)
+             font=("Segoe UI", 10, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=6)
     
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=500).pack(pady=5)
+    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
     
+    # ===== DATOS DEL PASAJERO (MÁS COMPACTO) =====
     tk.Label(marco_boleta, text="👤 DATOS DEL PASAJERO",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
+             font=("Segoe UI", 11, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=15, pady=3)
     
+    # Usar fuente más pequeña y menos padding
     tk.Label(marco_boleta, text=f"Nombre: {pasajero.nombre}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     tk.Label(marco_boleta, text=f"DNI: {pasajero.dni}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     tk.Label(marco_boleta, text=f"Teléfono: {pasajero.telefono if pasajero.telefono else 'No registrado'}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=500).pack(pady=5)
+    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
     
+    # ===== DATOS DEL VIAJE (MÁS COMPACTO) =====
     tk.Label(marco_boleta, text="🚌 DATOS DEL VIAJE",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
+             font=("Segoe UI", 11, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=15, pady=3)
     
     tk.Label(marco_boleta, text=f"Origen: {origen}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     tk.Label(marco_boleta, text=f"Destino: {destino}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     tk.Label(marco_boleta, text=f"Asiento: {pasajero.asiento if pasajero.asiento else 'No asignado'}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_boleta, text=f"Fecha/Hora: {fecha_viaje}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
+    tk.Label(marco_boleta, text=f"Fecha: {fecha_viaje}",
+             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
     
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=500).pack(pady=5)
+    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
     
+    # ===== MENSAJE FINAL (MÁS COMPACTO) =====
     tk.Label(marco_boleta, text="✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨",
-             font=("Segoe UI", 12, "bold"), fg="#10B981", bg="#0F172A").pack(pady=10)
-    tk.Label(marco_boleta, text="📌 Presenta este boleto al abordar el bus",
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack()
-    tk.Label(marco_boleta, text="⏰ Llegar con 30 minutos de anticipación",
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack(pady=5)
+             font=("Segoe UI", 11, "bold"), fg="#10B981", bg="#0F172A").pack(pady=6)
+    tk.Label(marco_boleta, text="📌 Presenta este boleto al abordar",
+             font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A").pack()
+    tk.Label(marco_boleta, text="⏰ Llegar 30 min antes",
+             font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A").pack(pady=3)
     
-    # ===== BOTONES DE IMPRESIÓN =====
+    # ===== BOTONES COMPACTOS (UN SOLO FRAME CON BOTONES MÁS PEQUEÑOS) =====
     frame_botones = tk.Frame(ventana, bg="#1E293B")
-    frame_botones.pack(pady=15)
+    frame_botones.pack(pady=10)
     
     def guardar_boleta():
         filename, _ = imprimir_boleta(pasajero, origen, destino, fecha_viaje)
@@ -300,25 +307,26 @@ def mostrar_boleta(pasajero, origen="Lima", destino="", fecha_viaje=None):
     def cerrar():
         ventana.destroy()
     
+    # Botones más compactos (padx reducido, fuente más pequeña)
     tk.Button(frame_botones, text="💾 Guardar", 
               command=guardar_boleta,
-              bg="#2563EB", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#2563EB", fg="white", font=("Segoe UI", 9, "bold"), 
+              padx=14, pady=5).pack(side="left", padx=5)
     
     tk.Button(frame_botones, text="🖨️ Imprimir", 
               command=imprimir_fisico,
-              bg="#10B981", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#10B981", fg="white", font=("Segoe UI", 9, "bold"), 
+              padx=14, pady=5).pack(side="left", padx=5)
     
     tk.Button(frame_botones, text="📂 Abrir", 
               command=abrir_archivo,
-              bg="#8B5CF6", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#8B5CF6", fg="white", font=("Segoe UI", 9, "bold"), 
+              padx=14, pady=5).pack(side="left", padx=5)
     
     tk.Button(frame_botones, text="❌ Cerrar", 
               command=cerrar,
-              bg="#EF4444", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#EF4444", fg="white", font=("Segoe UI", 9, "bold"), 
+              padx=14, pady=5).pack(side="left", padx=5)
 
 # ==============================================
 # FUNCIONES DE FACTURACIÓN
@@ -447,134 +455,120 @@ def mostrar_factura(pasajero, origen="Lima", destino="", asiento="",
     
     factura = generar_factura(pasajero, origen, destino, asiento, fecha_viaje, servicio)
     
+    # ===== VENTANA =====
     ventana = tk.Toplevel()
     ventana.title(f"🧾 Factura - {pasajero.nombre}")
-    ventana.geometry("750x850")
+    ventana.geometry("520x600")  # Aumenté el alto para dar más espacio
     ventana.resizable(False, False)
     ventana.configure(bg="#1E293B")
     
-    canvas = tk.Canvas(ventana, bg="#1E293B", highlightthickness=0)
-    scrollbar = tk.Scrollbar(ventana, orient="vertical", command=canvas.yview)
-    scrollable_frame = tk.Frame(canvas, bg="#1E293B")
+    # ===== TÍTULO =====
+    tk.Label(ventana, text="🧾 FACTURA", 
+             font=("Segoe UI", 14, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=6)
     
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-    )
+    tk.Frame(ventana, bg="#2563EB", height=2, width=440).pack(pady=2)
     
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    canvas.configure(yscrollcommand=scrollbar.set)
+    # ===== MARCO FACTURA (con scroll para que quepa todo) =====
+    marco_factura = tk.Frame(ventana, bg="#0F172A", relief="solid", bd=2)
+    marco_factura.pack(padx=12, pady=6, fill="both", expand=True)
     
-    canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-    scrollbar.pack(side="right", fill="y")
-    
-    tk.Label(scrollable_frame, text="🧾 FACTURA ELECTRÓNICA", 
-             font=("Segoe UI", 20, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=15)
-    
-    tk.Frame(scrollable_frame, bg="#2563EB", height=2, width=600).pack(pady=5)
-    
-    marco_factura = tk.Frame(scrollable_frame, bg="#0F172A", relief="solid", bd=2)
-    marco_factura.pack(padx=20, pady=10, fill="both", expand=True)
-    
+    # Datos empresa (más compacto)
     tk.Label(marco_factura, text=EMPRESA["nombre"],
-             font=("Segoe UI", 14, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=5)
-    tk.Label(marco_factura, text=f"RUC: {EMPRESA['ruc']}",
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack()
-    tk.Label(marco_factura, text=EMPRESA["direccion"],
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack()
-    tk.Label(marco_factura, text=f"Tel: {EMPRESA['telefono']} | Email: {EMPRESA['email']}",
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack(pady=(0, 10))
+             font=("Segoe UI", 10, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=1)
+    tk.Label(marco_factura, text=f"RUC: {EMPRESA['ruc']}  |  {EMPRESA['direccion']}",
+             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack()
+    tk.Label(marco_factura, text=f"Tel: {EMPRESA['telefono']}",
+             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack(pady=(0, 2))
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
-    tk.Label(marco_factura, text=f"N° FACTURA: {factura['numero']}",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
-    tk.Label(marco_factura, text=f"Fecha Emisión: {factura['fecha_emision']}",
-             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack(anchor="w", padx=20, pady=2)
+    # Número y fecha (una línea)
+    f_num = tk.Frame(marco_factura, bg="#0F172A")
+    f_num.pack(fill="x", padx=12, pady=1)
+    tk.Label(f_num, text=f"N°: {factura['numero']}",
+             font=("Segoe UI", 9, "bold"), fg="#FCD34D", bg="#0F172A").pack(side="left")
+    tk.Label(f_num, text=factura['fecha_emision'],
+             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack(side="right")
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
-    tk.Label(marco_factura, text="📋 DATOS DEL CLIENTE",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
+    # Datos cliente (más compacto)
+    tk.Label(marco_factura, text="📋 CLIENTE",
+             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
+    tk.Label(marco_factura, text=f"{factura['cliente']['nombre']}  |  DNI: {factura['cliente']['dni']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
+    tk.Label(marco_factura, text=f"Tel: {factura['cliente']['telefono']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
     
-    tk.Label(marco_factura, text=f"Nombre: {factura['cliente']['nombre']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"DNI: {factura['cliente']['dni']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"Teléfono: {factura['cliente']['telefono']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
+    # Datos viaje (más compacto)
+    tk.Label(marco_factura, text="🚌 VIAJE",
+             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
+    tk.Label(marco_factura, text=f"{factura['viaje']['origen']} → {factura['viaje']['destino']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
+    tk.Label(marco_factura, text=f"Asiento: {factura['viaje']['asiento']}  |  {factura['viaje']['tipo_servicio']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
+    tk.Label(marco_factura, text=f"Fecha: {factura['fecha_viaje']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
     
-    tk.Label(marco_factura, text="🚌 DATOS DEL VIAJE",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
-    tk.Label(marco_factura, text=f"Origen: {factura['viaje']['origen']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"Destino: {factura['viaje']['destino']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"Asiento: {factura['viaje']['asiento']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"Servicio: {factura['viaje']['tipo_servicio']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
-    tk.Label(marco_factura, text=f"Fecha Viaje: {factura['fecha_viaje']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=40)
+    # Detalle de pago (más compacto)
+    tk.Label(marco_factura, text="💰 PAGO",
+             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
-    
-    tk.Label(marco_factura, text="💰 DETALLE DE PAGO",
-             font=("Segoe UI", 12, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=20, pady=5)
-    
+    # Encabezados
     header_frame = tk.Frame(marco_factura, bg="#0F172A")
-    header_frame.pack(fill="x", padx=40)
+    header_frame.pack(fill="x", padx=15)
     
-    tk.Label(header_frame, text="Descripción", font=("Segoe UI", 10, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=30).grid(row=0, column=0, sticky="w")
-    tk.Label(header_frame, text="Cant", font=("Segoe UI", 10, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=8).grid(row=0, column=1)
-    tk.Label(header_frame, text="P.Unit", font=("Segoe UI", 10, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=10).grid(row=0, column=2)
-    tk.Label(header_frame, text="Subtotal", font=("Segoe UI", 10, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=10).grid(row=0, column=3)
+    tk.Label(header_frame, text="Descripción", font=("Segoe UI", 7, "bold"), 
+             fg="#94A3B8", bg="#0F172A", width=20).grid(row=0, column=0, sticky="w")
+    tk.Label(header_frame, text="Cant", font=("Segoe UI", 7, "bold"), 
+             fg="#94A3B8", bg="#0F172A", width=5).grid(row=0, column=1)
+    tk.Label(header_frame, text="P.Unit", font=("Segoe UI", 7, "bold"), 
+             fg="#94A3B8", bg="#0F172A", width=8).grid(row=0, column=2)
+    tk.Label(header_frame, text="Subtotal", font=("Segoe UI", 7, "bold"), 
+             fg="#94A3B8", bg="#0F172A", width=8).grid(row=0, column=3)
     
     for item in factura["detalle"]:
         row_frame = tk.Frame(marco_factura, bg="#0F172A")
-        row_frame.pack(fill="x", padx=40)
+        row_frame.pack(fill="x", padx=15)
         
-        tk.Label(row_frame, text=item["descripcion"], font=("Segoe UI", 10), 
-                 fg="#F8FAFC", bg="#0F172A", width=30).grid(row=0, column=0, sticky="w")
-        tk.Label(row_frame, text=str(item["cantidad"]), font=("Segoe UI", 10), 
-                 fg="#F8FAFC", bg="#0F172A", width=8).grid(row=0, column=1)
-        tk.Label(row_frame, text=f"S/{item['precio_unitario']:.2f}", font=("Segoe UI", 10), 
-                 fg="#F8FAFC", bg="#0F172A", width=10).grid(row=0, column=2)
-        tk.Label(row_frame, text=f"S/{item['subtotal']:.2f}", font=("Segoe UI", 10), 
-                 fg="#F8FAFC", bg="#0F172A", width=10).grid(row=0, column=3)
+        tk.Label(row_frame, text=item["descripcion"][:20], font=("Segoe UI", 7), 
+                 fg="#F8FAFC", bg="#0F172A", width=20).grid(row=0, column=0, sticky="w")
+        tk.Label(row_frame, text=str(item["cantidad"]), font=("Segoe UI", 7), 
+                 fg="#F8FAFC", bg="#0F172A", width=5).grid(row=0, column=1)
+        tk.Label(row_frame, text=f"S/{item['precio_unitario']:.2f}", font=("Segoe UI", 7), 
+                 fg="#F8FAFC", bg="#0F172A", width=8).grid(row=0, column=2)
+        tk.Label(row_frame, text=f"S/{item['subtotal']:.2f}", font=("Segoe UI", 7), 
+                 fg="#F8FAFC", bg="#0F172A", width=8).grid(row=0, column=3)
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
+    # Totales (más compacto)
     total_frame = tk.Frame(marco_factura, bg="#0F172A")
-    total_frame.pack(fill="x", padx=40, pady=5)
+    total_frame.pack(fill="x", padx=15, pady=1)
     
-    tk.Label(total_frame, text=f"SUBTOTAL:  S/{factura['subtotal']:.2f}", 
-             font=("Segoe UI", 11, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
-    tk.Label(total_frame, text=f"IGV (18%):  S/{factura['igv']:.2f}", 
-             font=("Segoe UI", 11, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
-    tk.Label(total_frame, text=f"TOTAL:      S/{factura['total']:.2f}", 
-             font=("Segoe UI", 14, "bold"), fg="#10B981", bg="#0F172A").pack(anchor="e")
+    tk.Label(total_frame, text=f"SUBTOTAL: S/{factura['subtotal']:.2f}", 
+             font=("Segoe UI", 8, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
+    tk.Label(total_frame, text=f"IGV (18%): S/{factura['igv']:.2f}", 
+             font=("Segoe UI", 8, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
+    tk.Label(total_frame, text=f"TOTAL: S/{factura['total']:.2f}", 
+             font=("Segoe UI", 10, "bold"), fg="#10B981", bg="#0F172A").pack(anchor="e")
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=550).pack(pady=5)
+    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
     
-    tk.Label(marco_factura, text=f"MÉTODO DE PAGO: {factura['metodo_pago']}",
-             font=("Segoe UI", 11), fg="#F8FAFC", bg="#0F172A").pack(pady=5)
+    tk.Label(marco_factura, text=f"MÉTODO: {factura['metodo_pago']}",
+             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(pady=1)
     
-    tk.Label(marco_factura, text="✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨",
-             font=("Segoe UI", 12, "bold"), fg="#10B981", bg="#0F172A").pack(pady=10)
+    tk.Label(marco_factura, text="✨ ¡GRACIAS! ✨",
+             font=("Segoe UI", 9, "bold"), fg="#10B981", bg="#0F172A").pack(pady=2)
     
-    # ============================================================
-    # ===== BOTONES DE IMPRESIÓN (AGREGAR ESTA PARTE) =====
-    # ============================================================
-    frame_botones = tk.Frame(scrollable_frame, bg="#1E293B")
-    frame_botones.pack(pady=15)
+    # ===== BOTONES (SIEMPRE VISIBLES) =====
+    frame_botones = tk.Frame(ventana, bg="#1E293B", height=40)
+    frame_botones.pack(pady=6, fill="x")
+    frame_botones.pack_propagate(False)  # Evita que se encoja
     
     def guardar_factura():
         filename, _ = imprimir_factura(factura)
@@ -611,27 +605,29 @@ def mostrar_factura(pasajero, origen="Lima", destino="", asiento="",
     def cerrar():
         ventana.destroy()
     
-    # Botones
-    tk.Button(frame_botones, text="💾 Guardar", 
+    # ===== BOTONES CENTRADOS =====
+    frame_botones_inner = tk.Frame(frame_botones, bg="#1E293B")
+    frame_botones_inner.pack(expand=True)
+    
+    tk.Button(frame_botones_inner, text="💾 Guardar", 
               command=guardar_factura,
-              bg="#2563EB", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#2563EB", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=12, pady=4).pack(side="left", padx=4)
     
-    tk.Button(frame_botones, text="🖨️ Imprimir",   # <--- BOTÓN IMPRIMIR
+    tk.Button(frame_botones_inner, text="🖨️ Imprimir", 
               command=imprimir_fisico,
-              bg="#10B981", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#10B981", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=12, pady=4).pack(side="left", padx=4)
     
-    tk.Button(frame_botones, text="📂 Abrir", 
+    tk.Button(frame_botones_inner, text="📂 Abrir", 
               command=abrir_archivo,
-              bg="#8B5CF6", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
+              bg="#8B5CF6", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=12, pady=4).pack(side="left", padx=4)
     
-    tk.Button(frame_botones, text="❌ Cerrar", 
+    tk.Button(frame_botones_inner, text="❌ Cerrar", 
               command=cerrar,
-              bg="#EF4444", fg="white", font=("Segoe UI", 10, "bold"), 
-              padx=20, pady=8).pack(side="left", padx=10)
-
+              bg="#EF4444", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=12, pady=4).pack(side="left", padx=4)
 # ==============================================
 # SISTEMA DE USUARIOS
 # ==============================================
