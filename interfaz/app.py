@@ -8,52 +8,27 @@ import random
 # ==============================================
 st.markdown("""
 <style>
-    /* Fondo oscuro igual a tu programa */
+    /* Fondo degradado profesional */
     .stApp {
-        background-color: #0F172A;
+        background: linear-gradient(135deg, #0A1628 0%, #1E293B 50%, #0F172A 100%);
+        background-attachment: fixed;
     }
     
-    /* Encabezado principal */
-    h1 {
-        color: #F8FAFC !important;
-        text-align: center;
-        font-weight: bold;
-    }
+    h1 { color: #F8FAFC !important; text-align: center; font-weight: bold; }
+    h2, h3 { color: #38BDF8 !important; }
     
-    /* Subtítulos */
-    h2, h3 {
-        color: #38BDF8 !important;
-    }
-    
-    /* Botones bonitos */
-    .stButton > button {
-        background-color: #2563EB;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        padding: 0.5rem 1.5rem;
-        font-weight: bold;
-    }
-    .stButton > button:hover {
-        background-color: #1D4ED8;
-    }
-    
-    /* Tarjetas y cuadros */
-    .stMetric {
-        background-color: #1E293B;
+    /* Tarjetas con efecto vidrio */
+    div[data-testid="stMetricValue"] {
+        background-color: rgba(30, 41, 59, 0.7);
         border-radius: 10px;
         padding: 15px;
-        border-left: 4px solid #38BDF8;
+        border-left: 3px solid #38BDF8;
+        backdrop-filter: blur(10px);
     }
     
-    /* Barra lateral */
     section[data-testid="stSidebar"] {
-        background-color: #1E293B;
-    }
-    
-    /* Texto general */
-    .stMarkdown, .stText {
-        color: #E2E8F0;
+        background-color: rgba(15, 23, 42, 0.85);
+        border-right: 1px solid rgba(56, 189, 248, 0.2);
     }
 </style>
 """, unsafe_allow_html=True)
