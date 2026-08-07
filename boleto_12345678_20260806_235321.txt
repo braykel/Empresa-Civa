@@ -1,0 +1,30 @@
+
+      🚌 CIVA TRANSPORTES 🚌      
+   TRANSPORTE INTERPROVINCIAL   
+================================
+
+       🎫 BOLETO DE VIAJE        
+      N°: B-20260806235321      
+--------------------------------
+
+👤 PASAJERO
+   JUAN CARLOS PEREZ GOMEZ
+   DNI: 12345678
+   Tel: No registrado
+
+--------------------------------
+🚌 VIAJE
+   Origen:  Lima
+   Destino: Lima
+   Asiento: 23
+   Fecha:   06/08/2026 23:53
+
+--------------------------------
+💰 TOTAL: S/ 0.00
+================================
+
+    ✨ ¡GRACIAS POR VIAJAR! ✨    
+Presenta este boleto al abordar 
+     ⏰ Llegar 30 min antes      
+================================
+    

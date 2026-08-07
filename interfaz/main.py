@@ -1,84 +1,85 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 import os
-import sys
 import hashlib
 import json
 from datetime import datetime
 import subprocess
 import tempfile
+import requests
 
 # ==============================================
-# CONSULTA RENIEC - BASE DE DATOS LOCAL
+# CARGAR VARIABLES DE ENTORNO
+# ==============================================
+
+CODART_TOKEN = "SQObJdDDnP9S1k1Hu8iAPCPbpjOghsUmiY9dUsdcJ58zdAFMX3SYQyJayCN7"
+
+# ==============================================
+# CONSULTA CODART API
+# ==============================================
+
+def consultar_dni_codart(dni):
+    """Consulta datos personales por DNI usando CODART API"""
+    if len(dni) != 8 or not dni.isdigit():
+        return {"error": "El DNI debe tener 8 dígitos", "success": False}
+    
+    if not CODART_TOKEN:
+        return {"error": "Token de CODART no configurado", "success": False}
+    
+    try:
+        url = f"https://api-codart.cgrt.org/api/v1/consultas/reniec/dni/{dni}"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {CODART_TOKEN}"
+        }
+        respuesta = requests.get(url, headers=headers, timeout=10)
+        
+        if respuesta.status_code == 200:
+            data = respuesta.json()
+            if data.get("success"):
+                result = data.get("result", {})
+                return {
+                    "success": True,
+                    "nombre_completo": result.get("full_name", ""),
+                    "nombres": result.get("first_name", ""),
+                    "apellido_paterno": result.get("first_last_name", ""),
+                    "apellido_materno": result.get("second_last_name", ""),
+                    "fuente": "CODART API"
+                }
+            else:
+                return {"error": "DNI no encontrado en RENIEC", "success": False}
+        else:
+            return {"error": f"Error {respuesta.status_code}", "success": False}
+            
+    except Exception as e:
+        return {"error": f"Error: {str(e)}", "success": False}
+
+# ==============================================
+# BASE DE DATOS DE PRUEBA
 # ==============================================
 
 BASE_DATOS_PRUEBA = {
-    "12345678": {
-        "nombre_completo": "JUAN CARLOS PEREZ GOMEZ",
-        "nombres": "JUAN CARLOS",
-        "apellido_paterno": "PEREZ",
-        "apellido_materno": "GOMEZ"
-    },
-    "87654321": {
-        "nombre_completo": "MARIA ELENA LOPEZ FLORES",
-        "nombres": "MARIA ELENA",
-        "apellido_paterno": "LOPEZ",
-        "apellido_materno": "FLORES"
-    },
-    "45678912": {
-        "nombre_completo": "PEDRO ANTONIO RAMIREZ SANCHEZ",
-        "nombres": "PEDRO ANTONIO",
-        "apellido_paterno": "RAMIREZ",
-        "apellido_materno": "SANCHEZ"
-    },
-    "78912345": {
-        "nombre_completo": "ANA MARIA TORRES VEGA",
-        "nombres": "ANA MARIA",
-        "apellido_paterno": "TORRES",
-        "apellido_materno": "VEGA"
-    },
-    "32165498": {
-        "nombre_completo": "CARLOS ALBERTO MENDOZA RUIZ",
-        "nombres": "CARLOS ALBERTO",
-        "apellido_paterno": "MENDOZA",
-        "apellido_materno": "RUIZ"
-    },
-    "65498732": {
-        "nombre_completo": "LAURA PATRICIA CASTRO DIAZ",
-        "nombres": "LAURA PATRICIA",
-        "apellido_paterno": "CASTRO",
-        "apellido_materno": "DIAZ"
-    },
-    "98765432": {
-        "nombre_completo": "JORGE LUIS NAVARRO ROMERO",
-        "nombres": "JORGE LUIS",
-        "apellido_paterno": "NAVARRO",
-        "apellido_materno": "ROMERO"
-    },
-    "11223344": {
-        "nombre_completo": "CARMEN ROSA SILVA PAZ",
-        "nombres": "CARMEN ROSA",
-        "apellido_paterno": "SILVA",
-        "apellido_materno": "PAZ"
-    }
+    "12345678": {"nombre_completo": "JUAN CARLOS PEREZ GOMEZ"},
+    "87654321": {"nombre_completo": "MARIA ELENA LOPEZ FLORES"},
+    "45678912": {"nombre_completo": "PEDRO ANTONIO RAMIREZ SANCHEZ"},
+    "78912345": {"nombre_completo": "ANA MARIA TORRES VEGA"},
+    "32165498": {"nombre_completo": "CARLOS ALBERTO MENDOZA RUIZ"},
+    "65498732": {"nombre_completo": "LAURA PATRICIA CASTRO DIAZ"},
 }
 
 def consultar_dni_reniec(dni):
-    """Consulta datos personales por DNI en base de datos local"""
-    if len(dni) != 8 or not dni.isdigit():
-        return {"error": "El DNI debe tener 8 dígitos", "success": False}
+    """Consulta datos personales por DNI (CODART o local)"""
+    resultado = consultar_dni_codart(dni)
+    if resultado.get("success"):
+        return resultado
     
     if dni in BASE_DATOS_PRUEBA:
         datos = BASE_DATOS_PRUEBA[dni].copy()
         datos["success"] = True
-        datos["fuente"] = "Base de datos de prueba"
+        datos["fuente"] = "Base de datos local"
         return datos
     else:
-        return {
-            "error": f"DNI {dni} no encontrado en la base de datos",
-            "success": False,
-            "disponibles": list(BASE_DATOS_PRUEBA.keys())
-        }
+        return {"error": "DNI no encontrado", "success": False}
 
 # ==============================================
 # CONFIGURACIÓN DE LA EMPRESA
@@ -94,540 +95,436 @@ EMPRESA = {
 }
 
 PRECIOS_DESTINO = {
-    "Lima": 0,
-    "Huaral": 45.00,
-    "Ica": 65.00,
-    "Nazca": 85.00,
-    "Arequipa": 120.00,
-    "Trujillo": 95.00,
-    "Chiclayo": 110.00
+    "Lima": 0, "Huaral": 45, "Ica": 65, "Nazca": 85,
+    "Arequipa": 120, "Trujillo": 95, "Chiclayo": 110
 }
 
-ARCHIVO_CORRELATIVO = "correlativo_factura.json"
-
-def obtener_correlativo():
-    """Obtiene el siguiente número de factura"""
-    if os.path.exists(ARCHIVO_CORRELATIVO):
-        try:
-            with open(ARCHIVO_CORRELATIVO, "r") as f:
-                datos = json.load(f)
-                correlativo = datos.get("correlativo", 1)
-                datos["correlativo"] = correlativo + 1
-                with open(ARCHIVO_CORRELATIVO, "w") as f2:
-                    json.dump(datos, f2)
-                return correlativo
-        except:
-            return 1
-    else:
-        with open(ARCHIVO_CORRELATIVO, "w") as f:
-            json.dump({"correlativo": 2}, f)
-        return 1
-
-def calcular_precio_viaje(origen, destino, tipo_servicio="Económico"):
-    """Calcula el precio según origen y destino"""
-    precio_base = PRECIOS_DESTINO.get(destino, 50.00)
-    
-    if origen != "Lima":
-        precio_base = precio_base * 0.9
-    
-    if tipo_servicio.lower() == "premium":
-        precio_base = precio_base * 1.3
-    
-    return precio_base
-
 # ==============================================
-# FUNCIONES DE IMPRESIÓN
+# DIÁLOGO DE IMPRESIÓN PROFESIONAL
 # ==============================================
 
-def imprimir_directo(contenido_texto, titulo="Impresión"):
-    """Imprime directamente usando el diálogo de impresión"""
+def mostrar_dialogo_impresion(parent=None):
+    """
+    Muestra un diálogo profesional para seleccionar opciones de impresión
+    """
+    ventana = tk.Toplevel(parent)
+    ventana.title("🖨️ Imprimir Documento")
+    ventana.geometry("420x380")
+    ventana.resizable(False, False)
+    ventana.configure(bg="#1E293B")
+    ventana.transient(parent)
+    ventana.grab_set()
+    
+    # Centrar
+    x = (ventana.winfo_screenwidth() // 2) - 210
+    y = (ventana.winfo_screenheight() // 2) - 190
+    ventana.geometry(f"420x380+{x}+{y}")
+    
+    # Título con icono
+    tk.Label(ventana, text="🖨️ Opciones de Impresión",
+             font=("Segoe UI", 16, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=15)
+    
+    tk.Frame(ventana, bg="#334155", height=1, width=380).pack(pady=5)
+    
+    # Marco principal
+    marco = tk.Frame(ventana, bg="#1E293B")
+    marco.pack(pady=15, padx=25, fill="both", expand=True)
+    
+    # ===== TAMAÑO DE PAPEL =====
+    tk.Label(marco, text="📄 Tamaño de papel:", font=("Segoe UI", 11, "bold"),
+             fg="#FCD34D", bg="#1E293B").pack(anchor="w", pady=(0, 5))
+    
+    var_papel = tk.StringVar()
+    var_papel.set("Ticket (80mm)")
+    
+    opciones_papel = [
+        "Ticket (80mm)",
+        "Ticket (58mm)",
+        "A4",
+        "Carta",
+        "Oficio"
+    ]
+    
+    menu_papel = tk.OptionMenu(marco, var_papel, *opciones_papel)
+    menu_papel.config(width=30, font=("Segoe UI", 10), bg="#0F172A", fg="#F8FAFC",
+                      relief="flat", highlightthickness=1, highlightcolor="#2563EB")
+    menu_papel.pack(pady=(0, 12), anchor="w")
+    
+    # ===== IMPRESORA =====
+    tk.Label(marco, text="🖨️ Impresora:", font=("Segoe UI", 11, "bold"),
+             fg="#FCD34D", bg="#1E293B").pack(anchor="w", pady=(0, 5))
+    
+    # Obtener impresoras disponibles
+    impresoras = ["Impresora predeterminada"]
     try:
+        if os.name == 'nt':
+            import win32print
+            impresoras = [p[2] for p in win32print.EnumPrinters(
+                win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS)]
+    except:
+        pass
+    
+    var_impresora = tk.StringVar()
+    var_impresora.set(impresoras[0])
+    
+    menu_impresora = tk.OptionMenu(marco, var_impresora, *impresoras)
+    menu_impresora.config(width=30, font=("Segoe UI", 10), bg="#0F172A", fg="#F8FAFC",
+                          relief="flat", highlightthickness=1, highlightcolor="#2563EB")
+    menu_impresora.pack(pady=(0, 12), anchor="w")
+    
+    # ===== COPIAS =====
+    frame_copias = tk.Frame(marco, bg="#1E293B")
+    frame_copias.pack(anchor="w", pady=(0, 12))
+    
+    tk.Label(frame_copias, text="📋 Copias:", font=("Segoe UI", 11, "bold"),
+             fg="#FCD34D", bg="#1E293B").pack(side="left", padx=(0, 15))
+    
+    var_copias = tk.IntVar()
+    var_copias.set(1)
+    
+    spin_copias = tk.Spinbox(frame_copias, from_=1, to=10, textvariable=var_copias,
+                              width=8, font=("Segoe UI", 11), bg="#0F172A", fg="#F8FAFC",
+                              relief="flat", highlightthickness=1, highlightcolor="#2563EB")
+    spin_copias.pack(side="left")
+    
+    # ===== BOTONES =====
+    frame_botones = tk.Frame(ventana, bg="#1E293B")
+    frame_botones.pack(pady=15, fill="x", padx=25)
+    
+    # Variable para devolver el resultado
+    resultado = [None]
+    
+    def imprimir():
+        resultado[0] = {
+            "papel": var_papel.get(),
+            "impresora": var_impresora.get(),
+            "copias": var_copias.get()
+        }
+        ventana.destroy()
+    
+    def cancelar():
+        resultado[0] = None
+        ventana.destroy()
+    
+    tk.Button(frame_botones, text="🖨️ Imprimir", 
+              command=imprimir,
+              bg="#10B981", fg="white", font=("Segoe UI", 11, "bold"), 
+              padx=25, pady=10, relief="flat").pack(side="left", padx=(0, 10))
+    
+    tk.Button(frame_botones, text="❌ Cancelar", 
+              command=cancelar,
+              bg="#EF4444", fg="white", font=("Segoe UI", 11, "bold"), 
+              padx=25, pady=10, relief="flat").pack(side="left")
+    
+    ventana.wait_window()
+    return resultado[0]
+
+# ==============================================
+# FUNCIONES DE IMPRESIÓN MEJORADAS
+# ==============================================
+
+def imprimir_con_dialogo(contenido_texto, parent=None):
+    """
+    Imprime mostrando el diálogo de selección de opciones
+    """
+    try:
+        # Mostrar diálogo
+        opciones = mostrar_dialogo_impresion(parent)
+        
+        if opciones is None:
+            return False, "⚠️ Impresión cancelada por el usuario"
+        
+        # Obtener opciones
+        papel = opciones.get("papel", "Ticket (80mm)")
+        copias = opciones.get("copias", 1)
+        
+        # Configurar ancho según papel
+        if "80mm" in papel:
+            ancho = 32
+        elif "58mm" in papel:
+            ancho = 24
+        else:
+            ancho = 80
+        
+        # Reformatear texto
+        lineas = []
+        for linea in contenido_texto.split('\n'):
+            if len(linea) <= ancho:
+                lineas.append(linea)
+            else:
+                for i in range(0, len(linea), ancho):
+                    lineas.append(linea[i:i+ancho])
+        
+        contenido_formateado = '\n'.join(lineas)
+        
+        # Agregar separador entre copias
+        if copias > 1:
+            contenido_formateado = (contenido_formateado + "\n" + "-" * ancho + "\n") * copias
+        
+        # Crear archivo temporal
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-            f.write(contenido_texto)
+            f.write(contenido_formateado)
             archivo_temp = f.name
         
+        # Imprimir según el sistema operativo
         if os.name == 'nt':
-            subprocess.run(['notepad', '/p', archivo_temp], check=True)
+            # Windows
+            try:
+                # Intentar con la impresora seleccionada
+                if opciones.get("impresora") != "Impresora predeterminada":
+                    # Usar el comando de impresión con la impresora específica
+                    subprocess.run(['notepad', '/p', archivo_temp], check=True)
+                else:
+                    subprocess.run(['notepad', '/p', archivo_temp], check=True)
+            except:
+                subprocess.run(['notepad', '/p', archivo_temp], check=True)
         else:
-            subprocess.run(['lp', archivo_temp], check=True)
+            # Linux/Mac
+            subprocess.run(['lp', '-o', 'media=80mm', archivo_temp], check=True)
         
         os.unlink(archivo_temp)
-        return True, "Documento enviado a la impresora"
+        return True, f"✅ Documento enviado a la impresora\n📄 {papel} | 📋 {copias} copia(s)"
         
     except Exception as e:
-        return False, str(e)
+        return False, f"❌ Error: {str(e)}"
 
-def imprimir_boleta(pasajero, origen="Lima", destino="", fecha_viaje=None):
-    """Genera y guarda un boleto en archivo de texto"""
+def imprimir_ticket_directo(contenido_texto, parent=None):
+    """
+    Imprime mostrando el diálogo de selección de opciones
+    """
+    return imprimir_con_dialogo(contenido_texto, parent)
+
+# ==============================================
+# FUNCIONES DE IMPRESIÓN EN TICKET (80mm)
+# ==============================================
+
+def centrar(texto, ancho=32):
+    """Centra texto para ticket de 80mm"""
+    espacios = ancho - len(texto)
+    if espacios <= 0:
+        return texto
+    izquierda = espacios // 2
+    derecha = espacios - izquierda
+    return " " * izquierda + texto + " " * derecha
+
+def imprimir_boleta_ticket(pasajero, origen="Lima", destino="", fecha_viaje=None):
+    """Genera boleto optimizado para ticket 80mm"""
     if not fecha_viaje:
         fecha_viaje = datetime.now().strftime("%d/%m/%Y %H:%M")
     
     num_boleta = f"B-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     filename = f"boleto_{pasajero.dni}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     
+    LINEA = "=" * 32
+    LINEA_PUNTEADA = "-" * 32
+    
     contenido = f"""
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║                  🚌 CIVA TRANSPORTES 🚌                      ║
-║              TRANSPORTE INTERPROVINCIAL                      ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║  🎫 BOLETO DE VIAJE N°: {num_boleta}                            ║
-║                                                              ║
-║  ─── DATOS DEL PASAJERO ───                                  ║
-║  👤 NOMBRE: {pasajero.nombre:<40} ║
-║  📋 DNI:    {pasajero.dni:<40} ║
-║  📞 TELÉFONO: {pasajero.telefono if pasajero.telefono else 'No registrado':<40} ║
-║                                                              ║
-║  ─── DATOS DEL VIAJE ───                                    ║
-║  🚌 ORIGEN:   {origen:<40} ║
-║  🏁 DESTINO:  {destino:<40} ║
-║  💺 ASIENTO:  {pasajero.asiento if pasajero.asiento else 'No asignado':<40} ║
-║  📅 FECHA:    {fecha_viaje:<40} ║
-║                                                              ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║  ✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨                    ║
-║                                                              ║
-║  📌 Presenta este boleto al abordar el bus                  ║
-║  ⏰ Llegar con 30 minutos de anticipación                   ║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
+{centrar("🚌 CIVA TRANSPORTES 🚌")}
+{centrar("TRANSPORTE INTERPROVINCIAL")}
+{LINEA}
+
+{centrar("🎫 BOLETO DE VIAJE")}
+{centrar(f"N°: {num_boleta}")}
+{LINEA_PUNTEADA}
+
+👤 PASAJERO
+   {pasajero.nombre}
+   DNI: {pasajero.dni}
+   Tel: {pasajero.telefono if pasajero.telefono else 'No registrado'}
+
+{LINEA_PUNTEADA}
+🚌 VIAJE
+   Origen:  {origen}
+   Destino: {destino}
+   Asiento: {pasajero.asiento if pasajero.asiento else 'No asignado'}
+   Fecha:   {fecha_viaje}
+
+{LINEA_PUNTEADA}
+💰 TOTAL: S/ 0.00
+{LINEA}
+
+{centrar("✨ ¡GRACIAS POR VIAJAR! ✨")}
+{centrar("Presenta este boleto al abordar")}
+{centrar("⏰ Llegar 30 min antes")}
+{LINEA}
     """
     
     with open(filename, "w", encoding="utf-8") as f:
         f.write(contenido)
-    
     return filename, contenido
 
-def mostrar_boleta(pasajero, origen="Lima", destino="", fecha_viaje=None):
-    """Muestra el boleto en una ventana emergente con opciones de impresión (Versión Compacta)"""
-    from datetime import datetime
-    
+def mostrar_boleta_ticket(pasajero, origen="Lima", destino="", fecha_viaje=None):
+    """Muestra vista previa del boleto con diálogo de impresión"""
     if not fecha_viaje:
         fecha_viaje = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    # ===== VENTANA MÁS PEQUEÑA =====
+    filename, contenido = imprimir_boleta_ticket(pasajero, origen, destino, fecha_viaje)
+    
     ventana = tk.Toplevel()
     ventana.title(f"🎫 Boleto - {pasajero.nombre}")
-    ventana.geometry("480x620")  # Reducido de 600x750 a 480x620
+    ventana.geometry("400x600")
     ventana.resizable(False, False)
     ventana.configure(bg="#1E293B")
     
-    # ===== TÍTULO MÁS COMPACTO =====
     tk.Label(ventana, text="🎫 BOLETO DE VIAJE", 
-             font=("Segoe UI", 16, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=10)
+             font=("Segoe UI", 12, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=8)
     
-    tk.Frame(ventana, bg="#2563EB", height=2, width=400).pack(pady=3)
+    ticket_frame = tk.Frame(ventana, bg="white", relief="solid", bd=1)
+    ticket_frame.pack(padx=15, pady=5, fill="both", expand=True)
     
-    # ===== MARCO DEL BOLETO =====
-    marco_boleta = tk.Frame(ventana, bg="#0F172A", relief="solid", bd=2)
-    marco_boleta.pack(padx=15, pady=8, fill="both", expand=True)
+    ticket_text = tk.Text(ticket_frame, font=("Courier New", 9), bg="white", 
+                          fg="#000000", wrap="none", height=30)
+    ticket_text.pack(fill="both", expand=True, padx=5, pady=5)
+    ticket_text.insert("1.0", contenido)
+    ticket_text.config(state="disabled")
     
-    num_boleta = f"B-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    tk.Label(marco_boleta, text=f"N° BOLETO: {num_boleta}",
-             font=("Segoe UI", 10, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=6)
-    
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
-    
-    # ===== DATOS DEL PASAJERO (MÁS COMPACTO) =====
-    tk.Label(marco_boleta, text="👤 DATOS DEL PASAJERO",
-             font=("Segoe UI", 11, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=15, pady=3)
-    
-    # Usar fuente más pequeña y menos padding
-    tk.Label(marco_boleta, text=f"Nombre: {pasajero.nombre}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    tk.Label(marco_boleta, text=f"DNI: {pasajero.dni}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    tk.Label(marco_boleta, text=f"Teléfono: {pasajero.telefono if pasajero.telefono else 'No registrado'}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
-    
-    # ===== DATOS DEL VIAJE (MÁS COMPACTO) =====
-    tk.Label(marco_boleta, text="🚌 DATOS DEL VIAJE",
-             font=("Segoe UI", 11, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=15, pady=3)
-    
-    tk.Label(marco_boleta, text=f"Origen: {origen}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    tk.Label(marco_boleta, text=f"Destino: {destino}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    tk.Label(marco_boleta, text=f"Asiento: {pasajero.asiento if pasajero.asiento else 'No asignado'}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    tk.Label(marco_boleta, text=f"Fecha: {fecha_viaje}",
-             font=("Segoe UI", 10), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=30)
-    
-    tk.Frame(marco_boleta, bg="#334155", height=1, width=420).pack(pady=3)
-    
-    # ===== MENSAJE FINAL (MÁS COMPACTO) =====
-    tk.Label(marco_boleta, text="✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨",
-             font=("Segoe UI", 11, "bold"), fg="#10B981", bg="#0F172A").pack(pady=6)
-    tk.Label(marco_boleta, text="📌 Presenta este boleto al abordar",
-             font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A").pack()
-    tk.Label(marco_boleta, text="⏰ Llegar 30 min antes",
-             font=("Segoe UI", 9), fg="#94A3B8", bg="#0F172A").pack(pady=3)
-    
-    # ===== BOTONES COMPACTOS (UN SOLO FRAME CON BOTONES MÁS PEQUEÑOS) =====
     frame_botones = tk.Frame(ventana, bg="#1E293B")
-    frame_botones.pack(pady=10)
+    frame_botones.pack(pady=10, fill="x")
     
-    def guardar_boleta():
-        filename, _ = imprimir_boleta(pasajero, origen, destino, fecha_viaje)
-        messagebox.showinfo("✅ Éxito", f"Boleto guardado como:\n{filename}")
+    def guardar():
+        messagebox.showinfo("✅ Éxito", f"Ticket guardado como:\n{filename}")
     
-    def imprimir_fisico():
-        filename, contenido = imprimir_boleta(pasajero, origen, destino, fecha_viaje)
-        exito, mensaje = imprimir_directo(contenido)
+    def imprimir():
+        exito, mensaje = imprimir_con_dialogo(contenido, ventana)
         if exito:
             messagebox.showinfo("🖨️ Éxito", mensaje)
         else:
-            messagebox.showwarning("Aviso", 
-                f"No se pudo imprimir automáticamente.\n\n"
-                f"El boleto se guardó como:\n{filename}\n\n"
-                f"¿Deseas abrirlo para imprimirlo manualmente?")
-            try:
-                if os.name == 'nt':
-                    os.startfile(filename)
-                else:
-                    subprocess.run(['xdg-open', filename])
-            except:
-                pass
-    
-    def abrir_archivo():
-        filename, _ = imprimir_boleta(pasajero, origen, destino, fecha_viaje)
-        try:
-            if os.name == 'nt':
-                os.startfile(filename)
-            else:
-                subprocess.run(['xdg-open', filename])
-        except:
-            messagebox.showinfo("Aviso", f"No se pudo abrir el archivo:\n{filename}")
+            messagebox.showerror("❌ Error", mensaje)
     
     def cerrar():
         ventana.destroy()
     
-    # Botones más compactos (padx reducido, fuente más pequeña)
     tk.Button(frame_botones, text="💾 Guardar", 
-              command=guardar_boleta,
-              bg="#2563EB", fg="white", font=("Segoe UI", 9, "bold"), 
-              padx=14, pady=5).pack(side="left", padx=5)
+              command=guardar,
+              bg="#2563EB", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=10, pady=4).pack(side="left", padx=5, expand=True, fill="x")
     
     tk.Button(frame_botones, text="🖨️ Imprimir", 
-              command=imprimir_fisico,
-              bg="#10B981", fg="white", font=("Segoe UI", 9, "bold"), 
-              padx=14, pady=5).pack(side="left", padx=5)
-    
-    tk.Button(frame_botones, text="📂 Abrir", 
-              command=abrir_archivo,
-              bg="#8B5CF6", fg="white", font=("Segoe UI", 9, "bold"), 
-              padx=14, pady=5).pack(side="left", padx=5)
+              command=imprimir,
+              bg="#10B981", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=10, pady=4).pack(side="left", padx=5, expand=True, fill="x")
     
     tk.Button(frame_botones, text="❌ Cerrar", 
               command=cerrar,
-              bg="#EF4444", fg="white", font=("Segoe UI", 9, "bold"), 
-              padx=14, pady=5).pack(side="left", padx=5)
+              bg="#EF4444", fg="white", font=("Segoe UI", 8, "bold"), 
+              padx=10, pady=4).pack(side="left", padx=5, expand=True, fill="x")
 
 # ==============================================
 # FUNCIONES DE FACTURACIÓN
 # ==============================================
 
+def calcular_precio_viaje(destino, tipo_servicio="Económico"):
+    precio_base = PRECIOS_DESTINO.get(destino, 50.00)
+    if tipo_servicio == "Premium":
+        precio_base = precio_base * 1.3
+    return precio_base
+
 def generar_factura(pasajero, origen="Lima", destino="", asiento="", 
                     fecha_viaje=None, tipo_servicio="Económico", metodo_pago="Efectivo"):
-    """Genera una factura completa para el pasajero"""
     if not fecha_viaje:
         fecha_viaje = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    num_factura = obtener_correlativo()
-    factura_num = f"F001-{num_factura:08d}"
-    
-    precio_unitario = calcular_precio_viaje(origen, destino, tipo_servicio)
-    
+    num_factura = f"F001-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    precio_unitario = calcular_precio_viaje(destino, tipo_servicio)
     subtotal = precio_unitario
     igv = subtotal * EMPRESA["igv"]
     total = subtotal + igv
     
-    factura = {
-        "numero": factura_num,
+    return {
+        "numero": num_factura,
         "fecha_emision": datetime.now().strftime("%d/%m/%Y %H:%M"),
         "fecha_viaje": fecha_viaje,
-        "empresa": EMPRESA,
-        "cliente": {
-            "nombre": pasajero.nombre,
-            "dni": pasajero.dni,
-            "telefono": pasajero.telefono or "No registrado"
-        },
-        "viaje": {
-            "origen": origen,
-            "destino": destino,
-            "asiento": asiento or pasajero.asiento or "No asignado",
-            "tipo_servicio": tipo_servicio
-        },
-        "detalle": [
-            {
-                "descripcion": f"Pasaje {origen} → {destino} ({tipo_servicio})",
-                "cantidad": 1,
-                "precio_unitario": precio_unitario,
-                "subtotal": subtotal
-            }
-        ],
-        "subtotal": subtotal,
-        "igv": igv,
-        "total": total,
+        "cliente": {"nombre": pasajero.nombre, "dni": pasajero.dni},
+        "viaje": {"origen": origen, "destino": destino, "asiento": asiento, "tipo_servicio": tipo_servicio},
+        "subtotal": subtotal, "igv": igv, "total": total,
         "metodo_pago": metodo_pago
     }
-    
-    return factura
 
-def imprimir_factura(factura):
-    """Genera el archivo de texto de la factura"""
-    num_factura = factura["numero"]
-    filename = f"factura_{num_factura}.txt"
-    
-    contenido = f"""
-╔══════════════════════════════════════════════════════════════════════════╗
-║                                                                          ║
-║                      🧾 FACTURA ELECTRÓNICA                             ║
-║                                                                          ║
-║  {EMPRESA['nombre']:<70} ║
-║  RUC: {EMPRESA['ruc']:<65} ║
-║  {EMPRESA['direccion']:<70} ║
-║  Tel: {EMPRESA['telefono']:<65} ║
-║  Email: {EMPRESA['email']:<65} ║
-║                                                                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  FACTURA N°: {factura['numero']:<58} ║
-║  FECHA EMISIÓN: {factura['fecha_emision']:<56} ║
-║                                                                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║  ─── DATOS DEL CLIENTE ───                                              ║
-║  NOMBRE: {factura['cliente']['nombre']:<62} ║
-║  DNI:    {factura['cliente']['dni']:<62} ║
-║  TELÉFONO: {factura['cliente']['telefono']:<60} ║
-║                                                                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║  ─── DATOS DEL VIAJE ───                                               ║
-║  ORIGEN:   {factura['viaje']['origen']:<60} ║
-║  DESTINO:  {factura['viaje']['destino']:<60} ║
-║  ASIENTO:  {factura['viaje']['asiento']:<60} ║
-║  SERVICIO: {factura['viaje']['tipo_servicio']:<60} ║
-║  FECHA:    {factura['fecha_viaje']:<60} ║
-║                                                                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║  ─── DETALLE DE PAGO ───                                               ║
-║                                                                          ║
-║  {'DESCRIPCIÓN':<40} {'CANT':<8} {'P.UNIT':<12} {'SUBTOTAL':<12} ║
-║  {'-'*40} {'-'*8} {'-'*12} {'-'*12} ║
-"""
-    
-    for item in factura["detalle"]:
-        contenido += f"""║  {item['descripcion']:<40} {str(item['cantidad']):<8} S/{item['precio_unitario']:>8.2f}  S/{item['subtotal']:>8.2f}  ║
-"""
-    
-    contenido += f"""║                                                                          ║
-║  {'SUBTOTAL':<40} {'':<8} {'':<12} S/{factura['subtotal']:>8.2f}  ║
-║  {'IGV (18%)':<40} {'':<8} {'':<12} S/{factura['igv']:>8.2f}  ║
-║  {'TOTAL':<40} {'':<8} {'':<12} S/{factura['total']:>8.2f}  ║
-║                                                                          ║
-╠══════════════════════════════════════════════════════════════════════════╣
-║                                                                          ║
-║  MÉTODO DE PAGO: {factura['metodo_pago']:<61} ║
-║                                                                          ║
-║  ✨ ¡GRACIAS POR VIAJAR CON NOSOTROS! ✨                               ║
-║                                                                          ║
-║  📌 Esta factura es un comprobante de pago válido                      ║
-║  ⚠️  Conservar para cualquier reclamo o consulta                      ║
-║                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════╝
-    """
-    
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(contenido)
-    
-    return filename, contenido
-
-def mostrar_factura(pasajero, origen="Lima", destino="", asiento="", 
-                    fecha_viaje=None, servicio="Económico"):
-    """Muestra la factura en una ventana emergente con opciones de impresión"""
+def mostrar_factura_ticket(pasajero, origen="Lima", destino="", asiento="", 
+                           fecha_viaje=None, servicio="Económico", metodo_pago="Efectivo"):
     if not fecha_viaje:
         fecha_viaje = datetime.now().strftime("%d/%m/%Y %H:%M")
     
-    factura = generar_factura(pasajero, origen, destino, asiento, fecha_viaje, servicio)
+    factura = generar_factura(pasajero, origen, destino, asiento, fecha_viaje, servicio, metodo_pago)
     
-    # ===== VENTANA =====
+    LINEA = "=" * 32
+    LINEA_PUNTEADA = "-" * 32
+    
+    contenido = f"""
+{centrar("🧾 FACTURA ELECTRÓNICA")}
+{centrar(EMPRESA['nombre'])}
+{centrar(f"RUC: {EMPRESA['ruc']}")}
+{LINEA}
+
+{centrar(f"N°: {factura['numero']}")}
+{centrar(f"Fecha: {factura['fecha_emision']}")}
+{LINEA_PUNTEADA}
+
+📋 CLIENTE
+   {factura['cliente']['nombre']}
+   DNI: {factura['cliente']['dni']}
+
+{LINEA_PUNTEADA}
+🚌 VIAJE
+   {factura['viaje']['origen']} → {factura['viaje']['destino']}
+   Asiento: {factura['viaje']['asiento'] or 'No asignado'}
+   Servicio: {factura['viaje']['tipo_servicio']}
+
+{LINEA_PUNTEADA}
+💰 PAGO
+   Subtotal: S/{factura['subtotal']:.2f}
+   IGV (18%): S/{factura['igv']:.2f}
+   {centrar(f"TOTAL: S/{factura['total']:.2f}")}
+
+{LINEA_PUNTEADA}
+   Método: {factura['metodo_pago']}
+
+{LINEA}
+{centrar("✨ ¡GRACIAS POR VIAJAR! ✨")}
+{LINEA}
+    """
+    
     ventana = tk.Toplevel()
     ventana.title(f"🧾 Factura - {pasajero.nombre}")
-    ventana.geometry("520x600")  # Aumenté el alto para dar más espacio
+    ventana.geometry("400x600")
     ventana.resizable(False, False)
     ventana.configure(bg="#1E293B")
     
-    # ===== TÍTULO =====
     tk.Label(ventana, text="🧾 FACTURA", 
-             font=("Segoe UI", 14, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=6)
+             font=("Segoe UI", 12, "bold"), fg="#F8FAFC", bg="#1E293B").pack(pady=8)
     
-    tk.Frame(ventana, bg="#2563EB", height=2, width=440).pack(pady=2)
+    ticket_frame = tk.Frame(ventana, bg="white", relief="solid", bd=1)
+    ticket_frame.pack(padx=15, pady=5, fill="both", expand=True)
     
-    # ===== MARCO FACTURA (con scroll para que quepa todo) =====
-    marco_factura = tk.Frame(ventana, bg="#0F172A", relief="solid", bd=2)
-    marco_factura.pack(padx=12, pady=6, fill="both", expand=True)
+    ticket_text = tk.Text(ticket_frame, font=("Courier New", 9), bg="white", 
+                          fg="#000000", wrap="none", height=30)
+    ticket_text.pack(fill="both", expand=True, padx=5, pady=5)
+    ticket_text.insert("1.0", contenido)
+    ticket_text.config(state="disabled")
     
-    # Datos empresa (más compacto)
-    tk.Label(marco_factura, text=EMPRESA["nombre"],
-             font=("Segoe UI", 10, "bold"), fg="#60A5FA", bg="#0F172A").pack(pady=1)
-    tk.Label(marco_factura, text=f"RUC: {EMPRESA['ruc']}  |  {EMPRESA['direccion']}",
-             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack()
-    tk.Label(marco_factura, text=f"Tel: {EMPRESA['telefono']}",
-             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack(pady=(0, 2))
+    frame_botones = tk.Frame(ventana, bg="#1E293B")
+    frame_botones.pack(pady=10, fill="x")
     
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    # Número y fecha (una línea)
-    f_num = tk.Frame(marco_factura, bg="#0F172A")
-    f_num.pack(fill="x", padx=12, pady=1)
-    tk.Label(f_num, text=f"N°: {factura['numero']}",
-             font=("Segoe UI", 9, "bold"), fg="#FCD34D", bg="#0F172A").pack(side="left")
-    tk.Label(f_num, text=factura['fecha_emision'],
-             font=("Segoe UI", 8), fg="#94A3B8", bg="#0F172A").pack(side="right")
-    
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    # Datos cliente (más compacto)
-    tk.Label(marco_factura, text="📋 CLIENTE",
-             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
-    tk.Label(marco_factura, text=f"{factura['cliente']['nombre']}  |  DNI: {factura['cliente']['dni']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
-    tk.Label(marco_factura, text=f"Tel: {factura['cliente']['telefono']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
-    
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    # Datos viaje (más compacto)
-    tk.Label(marco_factura, text="🚌 VIAJE",
-             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
-    tk.Label(marco_factura, text=f"{factura['viaje']['origen']} → {factura['viaje']['destino']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
-    tk.Label(marco_factura, text=f"Asiento: {factura['viaje']['asiento']}  |  {factura['viaje']['tipo_servicio']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
-    tk.Label(marco_factura, text=f"Fecha: {factura['fecha_viaje']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(anchor="w", padx=25)
-    
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    # Detalle de pago (más compacto)
-    tk.Label(marco_factura, text="💰 PAGO",
-             font=("Segoe UI", 8, "bold"), fg="#FCD34D", bg="#0F172A").pack(anchor="w", padx=12)
-    
-    # Encabezados
-    header_frame = tk.Frame(marco_factura, bg="#0F172A")
-    header_frame.pack(fill="x", padx=15)
-    
-    tk.Label(header_frame, text="Descripción", font=("Segoe UI", 7, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=20).grid(row=0, column=0, sticky="w")
-    tk.Label(header_frame, text="Cant", font=("Segoe UI", 7, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=5).grid(row=0, column=1)
-    tk.Label(header_frame, text="P.Unit", font=("Segoe UI", 7, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=8).grid(row=0, column=2)
-    tk.Label(header_frame, text="Subtotal", font=("Segoe UI", 7, "bold"), 
-             fg="#94A3B8", bg="#0F172A", width=8).grid(row=0, column=3)
-    
-    for item in factura["detalle"]:
-        row_frame = tk.Frame(marco_factura, bg="#0F172A")
-        row_frame.pack(fill="x", padx=15)
-        
-        tk.Label(row_frame, text=item["descripcion"][:20], font=("Segoe UI", 7), 
-                 fg="#F8FAFC", bg="#0F172A", width=20).grid(row=0, column=0, sticky="w")
-        tk.Label(row_frame, text=str(item["cantidad"]), font=("Segoe UI", 7), 
-                 fg="#F8FAFC", bg="#0F172A", width=5).grid(row=0, column=1)
-        tk.Label(row_frame, text=f"S/{item['precio_unitario']:.2f}", font=("Segoe UI", 7), 
-                 fg="#F8FAFC", bg="#0F172A", width=8).grid(row=0, column=2)
-        tk.Label(row_frame, text=f"S/{item['subtotal']:.2f}", font=("Segoe UI", 7), 
-                 fg="#F8FAFC", bg="#0F172A", width=8).grid(row=0, column=3)
-    
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    # Totales (más compacto)
-    total_frame = tk.Frame(marco_factura, bg="#0F172A")
-    total_frame.pack(fill="x", padx=15, pady=1)
-    
-    tk.Label(total_frame, text=f"SUBTOTAL: S/{factura['subtotal']:.2f}", 
-             font=("Segoe UI", 8, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
-    tk.Label(total_frame, text=f"IGV (18%): S/{factura['igv']:.2f}", 
-             font=("Segoe UI", 8, "bold"), fg="#F8FAFC", bg="#0F172A").pack(anchor="e")
-    tk.Label(total_frame, text=f"TOTAL: S/{factura['total']:.2f}", 
-             font=("Segoe UI", 10, "bold"), fg="#10B981", bg="#0F172A").pack(anchor="e")
-    
-    tk.Frame(marco_factura, bg="#334155", height=1, width=440).pack(pady=2)
-    
-    tk.Label(marco_factura, text=f"MÉTODO: {factura['metodo_pago']}",
-             font=("Segoe UI", 8), fg="#F8FAFC", bg="#0F172A").pack(pady=1)
-    
-    tk.Label(marco_factura, text="✨ ¡GRACIAS! ✨",
-             font=("Segoe UI", 9, "bold"), fg="#10B981", bg="#0F172A").pack(pady=2)
-    
-    # ===== BOTONES (SIEMPRE VISIBLES) =====
-    frame_botones = tk.Frame(ventana, bg="#1E293B", height=40)
-    frame_botones.pack(pady=6, fill="x")
-    frame_botones.pack_propagate(False)  # Evita que se encoja
-    
-    def guardar_factura():
-        filename, _ = imprimir_factura(factura)
-        messagebox.showinfo("✅ Éxito", f"Factura guardada como:\n{filename}")
-    
-    def imprimir_fisico():
-        filename, contenido = imprimir_factura(factura)
-        exito, mensaje = imprimir_directo(contenido)
+    def imprimir():
+        exito, mensaje = imprimir_con_dialogo(contenido, ventana)
         if exito:
             messagebox.showinfo("🖨️ Éxito", mensaje)
         else:
-            messagebox.showwarning("Aviso", 
-                f"No se pudo imprimir automáticamente.\n\n"
-                f"La factura se guardó como:\n{filename}\n\n"
-                f"¿Deseas abrirla para imprimirla manualmente?")
-            try:
-                if os.name == 'nt':
-                    os.startfile(filename)
-                else:
-                    subprocess.run(['xdg-open', filename])
-            except:
-                pass
-    
-    def abrir_archivo():
-        filename, _ = imprimir_factura(factura)
-        try:
-            if os.name == 'nt':
-                os.startfile(filename)
-            else:
-                subprocess.run(['xdg-open', filename])
-        except:
-            messagebox.showinfo("Aviso", f"No se pudo abrir el archivo:\n{filename}")
+            messagebox.showerror("❌ Error", mensaje)
     
     def cerrar():
         ventana.destroy()
     
-    # ===== BOTONES CENTRADOS =====
-    frame_botones_inner = tk.Frame(frame_botones, bg="#1E293B")
-    frame_botones_inner.pack(expand=True)
-    
-    tk.Button(frame_botones_inner, text="💾 Guardar", 
-              command=guardar_factura,
-              bg="#2563EB", fg="white", font=("Segoe UI", 8, "bold"), 
-              padx=12, pady=4).pack(side="left", padx=4)
-    
-    tk.Button(frame_botones_inner, text="🖨️ Imprimir", 
-              command=imprimir_fisico,
+    tk.Button(frame_botones, text="🖨️ Imprimir", 
+              command=imprimir,
               bg="#10B981", fg="white", font=("Segoe UI", 8, "bold"), 
-              padx=12, pady=4).pack(side="left", padx=4)
+              padx=10, pady=4).pack(side="left", padx=5, expand=True, fill="x")
     
-    tk.Button(frame_botones_inner, text="📂 Abrir", 
-              command=abrir_archivo,
-              bg="#8B5CF6", fg="white", font=("Segoe UI", 8, "bold"), 
-              padx=12, pady=4).pack(side="left", padx=4)
-    
-    tk.Button(frame_botones_inner, text="❌ Cerrar", 
+    tk.Button(frame_botones, text="❌ Cerrar", 
               command=cerrar,
               bg="#EF4444", fg="white", font=("Segoe UI", 8, "bold"), 
-              padx=12, pady=4).pack(side="left", padx=4)
+              padx=10, pady=4).pack(side="left", padx=5, expand=True, fill="x")
+
 # ==============================================
 # SISTEMA DE USUARIOS
 # ==============================================
@@ -645,180 +542,20 @@ USUARIOS = {
     }
 }
 
-ARCHIVO_RECORDAR = "recordar_usuario.json"
-
 def cifrar_clave(clave):
     return hashlib.md5(clave.encode()).hexdigest()
-
-def guardar_usuario_recordar(correo):
-    with open(ARCHIVO_RECORDAR, "w") as f:
-        json.dump({"correo": correo}, f)
-
-def cargar_usuario_recordar():
-    if os.path.exists(ARCHIVO_RECORDAR):
-        try:
-            with open(ARCHIVO_RECORDAR, "r") as f:
-                datos = json.load(f)
-                return datos.get("correo", "")
-        except:
-            return ""
-    return ""
-
-def cambiar_contraseña(ventana_padre, correo_actual):
-    ventana = tk.Toplevel(ventana_padre)
-    ventana.title("Cambiar Contraseña")
-    ventana.geometry("400x300")
-    ventana.resizable(False, False)
-    ventana.transient(ventana_padre)
-    ventana.grab_set()
-
-    tk.Label(ventana, text="Cambiar Contraseña", font=("Arial", 14, "bold")).pack(pady=15)
-    marco = tk.Frame(ventana)
-    marco.pack(pady=10)
-
-    tk.Label(marco, text="Contraseña actual:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", pady=5)
-    entrada_actual = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
-    entrada_actual.grid(row=1, column=0, pady=5)
-
-    tk.Label(marco, text="Nueva contraseña:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", pady=5)
-    entrada_nueva = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
-    entrada_nueva.grid(row=3, column=0, pady=5)
-
-    tk.Label(marco, text="Repetir contraseña:", font=("Arial", 10)).grid(row=4, column=0, sticky="w", pady=5)
-    entrada_repetir = tk.Entry(marco, width=30, show="•", font=("Arial", 10))
-    entrada_repetir.grid(row=5, column=0, pady=5)
-
-    def confirmar():
-        actual = entrada_actual.get().strip()
-        nueva = entrada_nueva.get().strip()
-        repetida = entrada_repetir.get().strip()
-
-        if USUARIOS[correo_actual]["clave_hash"] != cifrar_clave(actual):
-            messagebox.showerror("Error", "Contraseña actual incorrecta")
-            return
-        if len(nueva) < 4:
-            messagebox.showwarning("Aviso", "La contraseña debe tener al menos 4 caracteres")
-            return
-        if nueva != repetida:
-            messagebox.showerror("Error", "Las contraseñas no coinciden")
-            return
-
-        USUARIOS[correo_actual]["clave_hash"] = cifrar_clave(nueva)
-        messagebox.showinfo("✅ Éxito", "Contraseña cambiada correctamente")
-        ventana.destroy()
-
-    tk.Button(ventana, text="Guardar", command=confirmar,
-              font=("Arial", 10, "bold"), bg="#28a745", fg="white",
-              padx=20, pady=8, relief="flat").pack(pady=15)
-
-def mostrar_pantalla_login(al_ingresar):
-    ventana_login = tk.Tk()
-    ventana_login.title("Inicio de Sesión - Sistema Logístico Civa")
-    ventana_login.geometry("400x420")
-    ventana_login.resizable(False, False)
-
-    ancho, alto = 400, 420
-    x = (ventana_login.winfo_screenwidth() // 2) - (ancho // 2)
-    y = (ventana_login.winfo_screenheight() // 2) - (alto // 2)
-    ventana_login.geometry(f"{ancho}x{alto}+{x}+{y}")
-
-    tk.Label(ventana_login, text="Sistema Logístico Civa", 
-             font=("Arial", 16, "bold")).pack(pady=(40, 10))
-    tk.Label(ventana_login, text="Inicia sesión para continuar", 
-             font=("Arial", 10)).pack(pady=(0, 30))
-
-    marco = tk.Frame(ventana_login)
-    marco.pack(pady=10)
-
-    tk.Label(marco, text="Correo electrónico:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", pady=5)
-    correo_guardado = cargar_usuario_recordar()
-    entrada_correo = tk.Entry(marco, width=35, font=("Arial", 11))
-    entrada_correo.grid(row=1, column=0, pady=5)
-    if correo_guardado:
-        entrada_correo.insert(0, correo_guardado)
-
-    tk.Label(marco, text="Contraseña:", font=("Arial", 10)).grid(row=2, column=0, sticky="w", pady=(15, 5))
-    entrada_contraseña = tk.Entry(marco, width=35, show="•", font=("Arial", 11))
-    entrada_contraseña.grid(row=3, column=0, pady=5)
-
-    recordar_var = tk.BooleanVar(value=bool(correo_guardado))
-    tk.Checkbutton(marco, text="Recordar mi correo", variable=recordar_var, 
-                   font=("Arial", 9)).grid(row=4, column=0, sticky="w", pady=10)
-
-    def verificar():
-        correo = entrada_correo.get().strip()
-        clave = entrada_contraseña.get().strip()
-
-        if correo not in USUARIOS:
-            messagebox.showerror("Error", "Correo o contraseña incorrectos")
-            return
-
-        if USUARIOS[correo]["clave_hash"] == cifrar_clave(clave):
-            ventana_login.destroy()
-            if recordar_var.get():
-                guardar_usuario_recordar(correo)
-            elif os.path.exists(ARCHIVO_RECORDAR):
-                os.remove(ARCHIVO_RECORDAR)
-
-            nombre = USUARIOS[correo]["nombre"]
-            rol = USUARIOS[correo]["rol"]
-            respuesta = messagebox.askyesno("✅ Bienvenido", 
-                f"¡Hola {nombre}!\nRol: {rol}\n\n¿Deseas cambiar tu contraseña ahora?")
-
-            if respuesta:
-                def continuar():
-                    cambiar_contraseña(None, correo)
-                    al_ingresar()
-                ventana_login.after(100, continuar)
-            else:
-                al_ingresar()
-        else:
-            messagebox.showerror("Error", "Correo o contraseña incorrectos")
-
-    tk.Button(ventana_login, text="Iniciar Sesión", command=verificar,
-              font=("Arial", 11, "bold"), bg="#0056b3", fg="white",
-              padx=30, pady=10, relief="flat").pack(pady=20)
-
-    ventana_login.mainloop()
-
-# ==============================================
-# IMPORTACIONES DE MÓDULOS
-# ==============================================
-
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
-try:
-    from estructuras.cola import Cola
-    from modelos.chofer import Chofer
-    from modelos.bus import Bus
-    from modelos.ruta import Ruta
-    from modelos.asiento import Asiento
-    from algoritmos.asignacion_choferes import asignar_chofer, enviar_a_descanso, liberar_de_descanso
-    from algoritmos.asignacion_buses import registrar_bus, asignar_bus
-    from algoritmos.dijkstra import calcular_ruta_mas_corta
-    print("✅ Módulos importados correctamente")
-except Exception as e:
-    print(f"⚠️ Error al importar módulos: {e}")
-    Cola = None
-    Chofer = Bus = Ruta = Asiento = None
-    asignar_chofer = enviar_a_descanso = liberar_de_descanso = None
-    registrar_bus = asignar_bus = calcular_ruta_mas_corta = None
 
 # ==============================================
 # CLASE PASAJERO
 # ==============================================
 
 class Pasajero:
-    def __init__(self, dni, nombre, telefono="", destino="", asiento=0, fecha_registro=None):
+    def __init__(self, dni, nombre, telefono="", destino="", asiento=0):
         self.dni = dni
         self.nombre = nombre
         self.telefono = telefono
         self.destino = destino
         self.asiento = asiento
-        self.fecha_registro = fecha_registro or datetime.now().strftime("%d/%m/%Y %H:%M")
-
-    def __str__(self):
-        return f"DNI: {self.dni} | {self.nombre} | Asiento: {self.asiento}"
 
 # ==============================================
 # SISTEMA PRINCIPAL
@@ -827,543 +564,140 @@ class Pasajero:
 class SistemaLogisticoCiva:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Sistema Logístico Civa - Transporte Interprovincial")
+        self.root.title("Sistema Logístico Civa")
         self.root.geometry("1050x800")
-        self.root.resizable(True, True)
-
-        self.color_fondo = "#0F172A"
-        self.color_pestaña = "#1E293B"
-        self.color_destacado = "#2563EB"
-        self.color_texto = "#F8FAFC"
-        self.color_borde = "#334155"
-        self.color_exito = "#10B981"
-        self.color_advertencia = "#F59E0B"
-        self.color_peligro = "#EF4444"
-        self.color_info = "#3B82F6"
-        self.root.configure(bg=self.color_fondo)
-
-        if Cola:
-            self.cola_choferes_disponibles = Cola()
-            self.cola_choferes_descanso = Cola()
-            self.cola_buses = Cola()
-        self.asientos = []
-        self.historial = []
+        self.root.configure(bg="#0F172A")
+        
         self.pasajeros = []
-        self.botones_asientos = {}
-        self.caja_mensajes = None
-        self.marco_lista_pasajeros = None
-        self.pasajero_seleccionado = None
+        self.historial = []
         self.entrada_dni = None
         self.entrada_nombre = None
         self.entrada_telefono = None
         self.entrada_asiento = None
         self.var_destino = None
-
+        
         self.ciudades = ["Lima", "Huaral", "Ica", "Nazca", "Arequipa", "Trujillo", "Chiclayo"]
-
-        self.grafo_rutas = {
-            "Lima": [("Huaral", 120), ("Ica", 306), ("Trujillo", 555)],
-            "Huaral": [("Lima", 120)],
-            "Ica": [("Lima", 306), ("Nazca", 210)],
-            "Nazca": [("Ica", 210), ("Arequipa", 450)],
-            "Trujillo": [("Lima", 555), ("Chiclayo", 208)],
-            "Chiclayo": [("Trujillo", 208)],
-            "Arequipa": [("Nazca", 450)]
-        }
-
-        marco_titulo = tk.Frame(self.root, bg=self.color_destacado, height=80)
+        
+        self.crear_interfaz()
+        self.cargar_inicio()
+    
+    def crear_interfaz(self):
+        # Título
+        marco_titulo = tk.Frame(self.root, bg="#2563EB", height=80)
         marco_titulo.pack(fill="x")
         marco_titulo.pack_propagate(False)
-
+        
         tk.Label(marco_titulo, text="🏢 SISTEMA LOGÍSTICO CIVA",
                  font=("Segoe UI", 22, "bold"),
-                 bg=self.color_destacado, fg="white").pack(pady=(15, 2))
-        tk.Label(marco_titulo, text="Gestión Integral de Transporte Interprovincial",
+                 bg="#2563EB", fg="white").pack(pady=(15, 2))
+        tk.Label(marco_titulo, text="Transporte Interprovincial",
                  font=("Segoe UI", 10, "italic"),
-                 bg=self.color_destacado, fg="#BFDBFE").pack()
-
-        self.crear_pestañas()
-        self.area_principal = tk.Frame(self.root, bg=self.color_pestaña, width=980, height=540)
-        self.area_principal.pack(pady=15)
-        self.area_principal.pack_propagate(False)
-
-        self.cargar_pantalla_inicio()
-        self.cargar_datos_prueba()
-
-    def crear_pestañas(self):
-        frame_tabs = tk.Frame(self.root, bg=self.color_fondo)
+                 bg="#2563EB", fg="#BFDBFE").pack()
+        
+        # Pestañas
+        frame_tabs = tk.Frame(self.root, bg="#0F172A")
         frame_tabs.pack(pady=(0, 5))
+        
         pestañas = [
-            ("🏠 Inicio", self.cargar_pantalla_inicio),
-            ("🗺️ Rutas", self.cargar_pantalla_rutas),
-            ("🚌 Buses", self.cargar_pantalla_buses),
-            ("👨‍✈️ Choferes", self.cargar_pantalla_choferes),
-            ("💺 Asientos", self.cargar_pantalla_asientos),
-            ("👤 Pasajeros", self.cargar_pantalla_pasajeros),
-            ("📊 Reportes", self.cargar_pantalla_reportes),
-            ("📜 Historial", self.cargar_pantalla_historial)
+            ("🏠 Inicio", self.cargar_inicio),
+            ("👤 Pasajeros", self.cargar_pasajeros),
+            ("🎫 Boletos", self.cargar_boletos),
+            ("🧾 Facturas", self.cargar_facturas),
+            ("📊 Reportes", self.cargar_reportes)
         ]
+        
         for i, (nombre, funcion) in enumerate(pestañas):
             btn = tk.Button(frame_tabs, text=nombre, font=("Segoe UI", 10, "bold"),
-                            bg=self.color_pestaña, fg=self.color_texto,
+                            bg="#1E293B", fg="#F8FAFC",
                             padx=18, pady=8, relief="flat", cursor="hand2",
-                            activebackground=self.color_destacado,
-                            command=lambda f=funcion: f())
+                            activebackground="#2563EB",
+                            command=funcion)
             btn.grid(row=0, column=i, padx=3)
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=self.color_destacado))
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg=self.color_pestaña))
-
-    def limpiar_area_principal(self):
+        
+        self.area_principal = tk.Frame(self.root, bg="#1E293B", width=980, height=540)
+        self.area_principal.pack(pady=15)
+        self.area_principal.pack_propagate(False)
+    
+    def limpiar_area(self):
         for widget in self.area_principal.winfo_children():
             widget.destroy()
-
-    def cargar_pantalla_inicio(self):
-        self.limpiar_area_principal()
+    
+    def cargar_inicio(self):
+        self.limpiar_area()
         self.area_principal.config(bg="#0F172A")
         
-        frame_central = tk.Frame(self.area_principal, bg="#0F172A")
-        frame_central.pack(expand=True, fill="both")
+        frame = tk.Frame(self.area_principal, bg="#0F172A")
+        frame.pack(expand=True, fill="both")
         
-        tk.Label(frame_central, text="SISTEMA LOGÍSTICO CIVA",
+        tk.Label(frame, text="SISTEMA LOGÍSTICO CIVA",
                  font=("Segoe UI", 36, "bold"), 
-                 fg="#F8FAFC", 
-                 bg="#0F172A").pack(pady=(80, 10))
+                 fg="#F8FAFC", bg="#0F172A").pack(pady=(80, 10))
         
-        tk.Label(frame_central, text="Gestión Integral de Transporte Interprovincial",
-                 font=("Segoe UI", 16), 
-                 fg="#94A3B8", 
-                 bg="#0F172A").pack(pady=(0, 30))
+        tk.Label(frame, text="Gestión Integral de Transporte Interprovincial",
+                 font=("Segoe UI", 16), fg="#94A3B8", bg="#0F172A").pack(pady=(0, 30))
         
-        tk.Frame(frame_central, bg="#2563EB", height=3, width=400).pack(pady=20)
+        tk.Frame(frame, bg="#2563EB", height=3, width=400).pack(pady=20)
         
-        tk.Label(frame_central, 
-                 text="🏢 Sistema diseñado para la gestión eficiente de:\n\n"
-                      "• 🗺️ Rutas y distancias entre ciudades\n"
-                      "• 🚌 Flota de buses y asignaciones\n"
-                      "• 👨‍✈️ Gestión de choferes\n"
-                      "• 💺 Control de asientos\n"
+        tk.Label(frame, 
+                 text="🏢 Sistema para la gestión de:\n\n"
                       "• 👤 Registro de pasajeros\n"
-                      "• 📊 Reportes y estadísticas\n\n"
-                      "🔹 Selecciona una opción en la barra de navegación para comenzar",
+                      "• 🎫 Generación de boletos\n"
+                      "• 🧾 Facturación electrónica\n"
+                      "• 📊 Reportes y estadísticas",
                  font=("Segoe UI", 12),
-                 fg="#CBD5E1",
-                 bg="#0F172A",
+                 fg="#CBD5E1", bg="#0F172A",
                  justify="center").pack(pady=10)
         
-        tk.Label(frame_central, 
-                 text="v2.1 | Civa Transportes Interprovinciales",
-                 font=("Segoe UI", 9),
-                 fg="#64748B",
-                 bg="#0F172A").pack(side="bottom", pady=20)
-
-    def cargar_pantalla_rutas(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="🗺️ CÁLCULO DE RUTA MÁS CORTA",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
-
-        frame = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame.pack(pady=10)
-
-        tk.Label(frame, text="Origen:", fg="white", bg=self.color_pestaña, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=10)
-        origen_var = tk.StringVar()
-        origen_var.set("Lima")
-        origen_combo = ttk.Combobox(frame, textvariable=origen_var, values=self.ciudades, state="readonly", font=("Arial", 12))
-        origen_combo.grid(row=0, column=1, padx=5, pady=10)
-
-        tk.Label(frame, text="Destino:", fg="white", bg=self.color_pestaña, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=10)
-        destino_var = tk.StringVar()
-        destino_var.set("Arequipa")
-        destino_combo = ttk.Combobox(frame, textvariable=destino_var, values=self.ciudades, state="readonly", font=("Arial", 12))
-        destino_combo.grid(row=0, column=3, padx=5, pady=10)
-
-        resultado = tk.Label(self.area_principal, text="", font=("Arial", 14), fg="white", bg=self.color_pestaña)
-        resultado.pack(pady=20)
-
-        def calcular():
-            if not calcular_ruta_mas_corta:
-                messagebox.showinfo("Aviso", "Módulo de rutas no disponible")
-                return
-            o = origen_var.get()
-            d = destino_var.get()
-            ruta, dist = calcular_ruta_mas_corta(self.grafo_rutas, o, d)
-            if ruta:
-                resultado.config(text=f"Ruta: {' → '.join(ruta)}\nDistancia: {dist} km", fg="#00ff88")
-                self.historial.append(f"🗺️ Ruta calculada: {o} → {d} | {dist} km")
-            else:
-                resultado.config(text="❌ No se encontró ruta", fg="#ff6666")
-                self.historial.append(f"❌ Intento de ruta: {o} → {d} (sin éxito)")
-
-        tk.Button(self.area_principal, text="Calcular Ruta", command=calcular,
-                  bg="#2ecc71", fg="white", font=("Arial", 12, "bold"), padx=20, pady=8).pack(pady=10)
-
-    def cargar_pantalla_buses(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="🚌 GESTIÓN DE BUSES",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
-        frame = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame.pack(pady=10)
-        tk.Label(frame, text="Código:", fg="white", bg=self.color_pestaña).grid(row=0, column=0, padx=5, pady=5)
-        cod_entry = tk.Entry(frame)
-        cod_entry.insert(0, "BUS006")
-        cod_entry.grid(row=0, column=1, padx=5, pady=5)
-        tk.Label(frame, text="Placa:", fg="white", bg=self.color_pestaña).grid(row=0, column=2, padx=5, pady=5)
-        placa_entry = tk.Entry(frame)
-        placa_entry.insert(0, "XYZ-789")
-        placa_entry.grid(row=0, column=3, padx=5, pady=5)
-        tk.Label(frame, text="Capacidad:", fg="white", bg=self.color_pestaña).grid(row=1, column=0, padx=5, pady=5)
-        cap_entry = tk.Entry(frame)
-        cap_entry.insert(0, "45")
-        cap_entry.grid(row=1, column=1, padx=5, pady=5)
-        tk.Label(frame, text="Servicio:", fg="white", bg=self.color_pestaña).grid(row=1, column=2, padx=5, pady=5)
-        servicio_var = tk.StringVar()
-        servicio_var.set("economico")
-        servicio_combo = ttk.Combobox(frame, textvariable=servicio_var, values=["economico", "premium"], state="readonly")
-        servicio_combo.grid(row=1, column=3, padx=5, pady=5)
-        lista = tk.Text(self.area_principal, width=80, height=10, font=("Arial", 10))
-        lista.pack(pady=10)
-
-        def actualizar_lista():
-            lista.delete("1.0", tk.END)
-            if not Cola or not self.cola_buses:
-                lista.insert(tk.END, "⚠️ Archivos de buses no disponibles\n")
-                return
-            lista.insert(tk.END, "=== Buses Registrados ===\n")
-            temp = Cola()
-            while not self.cola_buses.esta_vacia():
-                bus = self.cola_buses.desencolar()
-                lista.insert(tk.END, f"{bus.codigo} | {bus.placa} | {bus.tipo_servicio} | {bus.estado}\n")
-                temp.encolar(bus)
-            while not temp.esta_vacia():
-                self.cola_buses.encolar(temp.desencolar())
-
-        def registrar():
-            if not Bus or not registrar_bus:
-                messagebox.showinfo("Aviso", "Módulo de buses no disponible")
-                return
-            bus = Bus(cod_entry.get(), placa_entry.get(), int(cap_entry.get()), servicio_var.get())
-            registrar_bus(self.cola_buses, bus)
-            self.historial.append(f"✅ Bus registrado: {bus.codigo} | Placa: {bus.placa}")
-            messagebox.showinfo("✅", f"Bus {bus.codigo} registrado")
-            actualizar_lista()
-
-        def asignar():
-            if not asignar_bus:
-                messagebox.showinfo("Aviso", "Módulo de buses no disponible")
-                return
-            bus = asignar_bus(self.cola_buses, servicio_var.get())
-            if bus:
-                self.historial.append(f"🚌 Bus asignado: {bus.codigo} para servicio {bus.tipo_servicio}")
-                messagebox.showinfo("✅", f"Asignado: {bus.codigo}")
-            else:
-                self.historial.append(f"⚠️ Intento asignar bus: sin disponibilidad")
-                messagebox.showinfo("Aviso", "No hay buses disponibles")
-            actualizar_lista()
-
-        tk.Button(frame, text="Registrar Bus", command=registrar, bg="#3498db", fg="white", padx=10, pady=5).grid(row=2, column=0, columnspan=2, pady=10)
-        tk.Button(frame, text="Asignar Bus", command=asignar, bg="#f39c12", fg="white", padx=10, pady=5).grid(row=2, column=2, columnspan=2, pady=10)
-        actualizar_lista()
-
-    def cargar_pantalla_choferes(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="👨‍✈️ GESTIÓN DE CHOFERES",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
-        frame = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame.pack(pady=10)
-        tk.Label(frame, text="DNI:", fg="white", bg=self.color_pestaña).grid(row=0, column=0, padx=5, pady=5)
-        dni_entry = tk.Entry(frame)
-        dni_entry.insert(0, "72345678")
-        dni_entry.grid(row=0, column=1, padx=5, pady=5)
-        tk.Label(frame, text="Nombre:", fg="white", bg=self.color_pestaña).grid(row=0, column=2, padx=5, pady=5)
-        nom_entry = tk.Entry(frame)
-        nom_entry.insert(0, "Carlos Perez")
-        nom_entry.grid(row=0, column=3, padx=5, pady=5)
-        tk.Label(frame, text="Licencia:", fg="white", bg=self.color_pestaña).grid(row=1, column=0, padx=5, pady=5)
-        licencia_var = tk.StringVar()
-        licencia_var.set("A1")
-        licencia_combo = ttk.Combobox(frame, textvariable=licencia_var, values=["A1", "A2", "B1", "B2"], state="readonly")
-        licencia_combo.grid(row=1, column=1, padx=5, pady=5)
-        ultimo = [None]
-        resultado = tk.Label(self.area_principal, text="", font=("Arial", 12), fg="white", bg=self.color_pestaña)
-        resultado.pack(pady=15)
-
-        def registrar():
-            if not Chofer:
-                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
-                return
-            chofer = Chofer(dni_entry.get(), nom_entry.get(), licencia_var.get())
-            self.cola_choferes_disponibles.encolar(chofer)
-            self.historial.append(f"✅ Chofer registrado: {chofer.nombre} | DNI: {chofer.dni}")
-            messagebox.showinfo("✅", f"Chofer {chofer.nombre} registrado")
-
-        def asignar():
-            if not asignar_chofer:
-                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
-                return
-            ultimo[0] = asignar_chofer(self.cola_choferes_disponibles)
-            if ultimo[0]:
-                resultado.config(text=f"✅ Asignado: {ultimo[0].nombre} | Estado: {ultimo[0].estado}")
-                self.historial.append(f"✅ Chofer asignado: {ultimo[0].nombre}")
-            else:
-                resultado.config(text="❌ No hay choferes disponibles")
-                self.historial.append("⚠️ Intento asignar chofer: sin disponibilidad")
-
-        def descansar():
-            if not enviar_a_descanso:
-                return
-            if ultimo[0]:
-                enviar_a_descanso(ultimo[0], self.cola_choferes_descanso)
-                self.historial.append(f"🛌 Chofer en descanso: {ultimo[0].nombre}")
-                resultado.config(text=f"🛌 {ultimo[0].nombre} enviado a descanso")
-                ultimo[0] = None
-
-        def liberar():
-            if not liberar_de_descanso:
-                messagebox.showinfo("Aviso", "Módulo de choferes no disponible")
-                return
-            c = liberar_de_descanso(self.cola_choferes_descanso, self.cola_choferes_disponibles)
-            if c:
-                resultado.config(text=f"🔄 {c.nombre} vuelve disponible")
-                self.historial.append(f"🔄 Chofer liberado: {c.nombre}")
-            else:
-                resultado.config(text="❌ Nadie en descanso")
-                self.historial.append("⚠️ Intento liberar chofer: nadie en descanso")
-
-        tk.Button(frame, text="Registrar", command=registrar, bg="#2ecc71", fg="white", padx=10).grid(row=2, column=0, pady=10)
-        tk.Button(frame, text="Asignar", command=asignar, bg="#3498db", fg="white", padx=10).grid(row=2, column=1, pady=10)
-        tk.Button(frame, text="Enviar a Descanso", command=descansar, bg="#9b59b6", fg="white", padx=10).grid(row=2, column=2, pady=10)
-        tk.Button(frame, text="Liberar", command=liberar, bg="#e67e22", fg="white", padx=10).grid(row=2, column=3, pady=10)
-
-    def cargar_pantalla_asientos(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="💺 GESTIÓN DE ASIENTOS",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=10)
-        if not self.asientos and Asiento:
-            self.asientos = [Asiento(i+1, 35) for i in range(40)]
-        frame_controles = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame_controles.pack(pady=5)
-        tk.Label(frame_controles, text="Número de asiento:", fg="white", bg=self.color_pestaña).grid(row=0, column=0, padx=5, pady=5)
-        num_entry = tk.Entry(frame_controles, width=5)
-        num_entry.grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(frame_controles, text="Reservar", bg="#3498db", fg="white", padx=10,
-                  command=lambda: self.reservar_asiento(num_entry)).grid(row=0, column=2, padx=3)
-        tk.Button(frame_controles, text="Marcar Ocupado", bg="#e74c3c", fg="white", padx=10,
-                  command=lambda: self.ocupar_asiento(num_entry)).grid(row=0, column=3, padx=3)
-        tk.Button(frame_controles, text="Liberar", bg="#2ecc71", fg="white", padx=10,
-                  command=lambda: self.liberar_asiento(num_entry)).grid(row=0, column=4, padx=3)
-        panel = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        panel.pack(pady=10, fill="both", expand=True)
-        frame_asientos = tk.Frame(panel, bg=self.color_pestaña)
-        frame_asientos.pack(side="top", padx=10, pady=15)
-        tk.Label(frame_asientos, text="Estado de asientos:", fg="white", bg=self.color_pestaña,
-                 font=("Arial", 11, "bold")).grid(row=0, column=0, columnspan=5, pady=5)
-        self.botones_asientos = {}
-        fila = 1
-        columna = 0
-        for asiento in self.asientos:
-            color = "#2ecc71" if asiento.estado == "libre" else "#e74c3c"
-            texto = f"{asiento.numero:02d}"
-            btn = tk.Button(frame_asientos, text=texto, width=4, height=2,
-                            bg=color, fg="white", font=("Arial", 9, "bold"),
-                            command=lambda n=asiento.numero: self.seleccionar_asiento(n, num_entry))
-            btn.grid(row=fila, column=columna, padx=2, pady=1)
-            self.botones_asientos[asiento.numero] = btn
-            columna += 1
-            if columna >= 5:
-                columna = 0
-                fila += 1
-        frame_info = tk.Frame(panel, bg=self.color_pestaña, width=300)
-        frame_info.pack(side="right", padx=10, fill="y")
-        tk.Label(frame_info, text="Mensajes:", fg="white", bg=self.color_pestaña,
-                 font=("Arial", 11, "bold")).pack(anchor="w", pady=5)
-        self.caja_mensajes = tk.Text(frame_info, width=35, height=18, bg="#0a1929", fg="white", font=("Arial", 9))
-        self.caja_mensajes.pack()
-        self.actualizar_resumen()
-
-    def seleccionar_asiento(self, numero, entry_widget):
-        entry_widget.delete(0, tk.END)
-        entry_widget.insert(0, str(numero))
-        self.caja_mensajes.insert(tk.END, f"👉 Seleccionado asiento {numero}\n")
-        self.caja_mensajes.see(tk.END)
-
-    def reservar_asiento(self, entry_widget):
-        numero = entry_widget.get().strip()
-        if not numero.isdigit():
-            self.caja_mensajes.insert(tk.END, "⚠️ Escribe un número válido\n")
-            return
-        n = int(numero)
-        if 1 <= n <= len(self.asientos):
-            if self.asientos[n-1].reservar():
-                self.historial.append(f"💺 Asiento {n} reservado")
-                self.caja_mensajes.insert(tk.END, f"✅ Asiento {n} → reservado\n")
-            else:
-                self.caja_mensajes.insert(tk.END, f"⚠️ Asiento {n} ya está ocupado\n")
-            self.actualizar_boton(n)
-            self.actualizar_resumen()
-        else:
-            self.caja_mensajes.insert(tk.END, f"❌ Asiento {n} no existe\n")
-        self.caja_mensajes.see(tk.END)
-
-    def ocupar_asiento(self, entry_widget):
-        numero = entry_widget.get().strip()
-        if not numero.isdigit():
-            self.caja_mensajes.insert(tk.END, "⚠️ Escribe un número válido\n")
-            return
-        n = int(numero)
-        if 1 <= n <= len(self.asientos):
-            self.asientos[n-1].estado = "ocupado"
-            self.historial.append(f"🔴 Asiento {n} → ocupado")
-            self.caja_mensajes.insert(tk.END, f"🔴 Asiento {n} marcado como ocupado\n")
-            self.actualizar_boton(n)
-            self.actualizar_resumen()
-        else:
-            self.caja_mensajes.insert(tk.END, f"❌ Asiento {n} no existe\n")
-        self.caja_mensajes.see(tk.END)
-
-    def liberar_asiento(self, entry_widget):
-        numero = entry_widget.get().strip()
-        if not numero.isdigit():
-            self.caja_mensajes.insert(tk.END, "⚠️ Escribe un número válido\n")
-            return
-        n = int(numero)
-        if 1 <= n <= len(self.asientos):
-            self.asientos[n-1].estado = "libre"
-            self.historial.append(f"🟢 Asiento {n} → liberado")
-            self.caja_mensajes.insert(tk.END, f"🟢 Asiento {n} liberado\n")
-            self.actualizar_boton(n)
-            self.actualizar_resumen()
-        else:
-            self.caja_mensajes.insert(tk.END, f"❌ Asiento {n} no existe\n")
-        self.caja_mensajes.see(tk.END)
-
-    def actualizar_boton(self, numero):
-        btn = self.botones_asientos.get(numero)
-        if btn:
-            estado = self.asientos[numero-1].estado
-            color = "#2ecc71" if estado == "libre" else "#e74c3c"
-            btn.config(bg=color)
-
-    def actualizar_resumen(self):
-        if self.caja_mensajes:
-            total = len(self.asientos)
-            libres = sum(1 for a in self.asientos if a.estado == "libre")
-            ocupados = total - libres
-            self.caja_mensajes.insert(tk.END, f"\n--- Resumen: BUS001 ---\n")
-            self.caja_mensajes.insert(tk.END, f"Total asientos: {total}\n")
-            self.caja_mensajes.insert(tk.END, f"Disponibles:   {libres}\n")
-            self.caja_mensajes.insert(tk.END, f"Ocupados:     {ocupados}\n")
-            self.caja_mensajes.see(tk.END)
-
-    # ==============================================
-    # PANTALLA DE PASAJEROS
-    # ==============================================
-    def cargar_pantalla_pasajeros(self):
-        self.limpiar_area_principal()
+        tk.Label(frame, 
+                 text="v2.0 | Civa Transportes",
+                 font=("Segoe UI", 9), fg="#64748B", bg="#0F172A").pack(side="bottom", pady=20)
+    
+    def cargar_pasajeros(self):
+        self.limpiar_area()
         
         tk.Label(self.area_principal, text="👤 REGISTRO DE PASAJEROS",
-                 font=("Segoe UI", 22, "bold"), fg="white", bg=self.color_pestaña).pack(pady=15)
+                 font=("Segoe UI", 22, "bold"), fg="white", bg="#1E293B").pack(pady=15)
         
-        tk.Label(self.area_principal, text="📌 Haz clic en un pasajero de la lista para seleccionarlo",
-                 font=("Segoe UI", 10), fg="#FCD34D", bg=self.color_pestaña).pack()
-        
-        marco = tk.Frame(self.area_principal, bg=self.color_pestaña)
+        marco = tk.Frame(self.area_principal, bg="#1E293B")
         marco.pack(pady=10)
         
         # DNI
         tk.Label(marco, text="DNI:", font=("Segoe UI", 11, "bold"),
-                 fg="white", bg=self.color_pestaña).grid(row=0, column=0, padx=5, pady=8, sticky="e")
+                 fg="white", bg="#1E293B").grid(row=0, column=0, padx=5, pady=8, sticky="e")
         
         entrada_dni = tk.Entry(marco, width=12, font=("Segoe UI", 12))
         entrada_dni.grid(row=0, column=1, padx=5, pady=8)
         self.entrada_dni = entrada_dni
         
-        estado_label = tk.Label(marco, text="", fg="#FCD34D", bg=self.color_pestaña, font=("Segoe UI", 9))
-        estado_label.grid(row=0, column=3, padx=8, pady=8)
-        
-        dnis_disponibles = ", ".join(list(BASE_DATOS_PRUEBA.keys())[:3]) + ", ..."
-        tk.Label(marco, text=f"DNIs: {dnis_disponibles}", 
-                 font=("Segoe UI", 8), fg="#94A3B8", bg=self.color_pestaña).grid(row=0, column=4, padx=5, pady=8)
-        
-        def limpiar_seleccion():
-            self.pasajero_seleccionado = None
-            entrada_nombre.config(bg="white")
-        
-        entrada_dni.bind('<KeyRelease>', lambda e: limpiar_seleccion())
-        
-        def buscar_datos():
+        def buscar_dni():
             dni = entrada_dni.get().strip()
-            
             if len(dni) != 8:
                 messagebox.showwarning("Aviso", "El DNI debe tener 8 dígitos")
-                entrada_dni.focus()
                 return
             
-            if not dni.isdigit():
-                messagebox.showwarning("Aviso", "El DNI solo debe contener números")
-                entrada_dni.focus()
-                return
-            
-            # Buscar en pasajeros registrados
-            for p in self.pasajeros:
-                if p.dni == dni:
-                    entrada_nombre.delete(0, tk.END)
-                    entrada_nombre.insert(0, p.nombre)
-                    entrada_telefono.delete(0, tk.END)
-                    entrada_telefono.insert(0, p.telefono)
-                    var_destino.set(p.destino)
-                    entrada_asiento.delete(0, tk.END)
-                    entrada_asiento.insert(0, p.asiento)
-                    entrada_nombre.config(bg="#FDE68A")
-                    self.pasajero_seleccionado = p
-                    messagebox.showinfo("✅ Encontrado", f"Pasajero ya registrado:\n{p.nombre}\n\nYa puedes imprimir su boleto o factura.")
-                    return
-            
-            # Buscar en base de datos
-            estado_label.config(text="⏳ Buscando...")
-            estado_label.update()
-            
-            datos = consultar_dni_reniec(dni)
-            estado_label.config(text="")
-            
-            if datos.get("error"):
-                disponibles = datos.get("disponibles", [])
-                msg = f"{datos['error']}\n\nDNIs disponibles:\n" + "\n".join(disponibles[:5])
-                if len(disponibles) > 5:
-                    msg += f"\n... y {len(disponibles)-5} más"
-                if messagebox.askyesno("DNI no encontrado", 
-                    f"{msg}\n\n¿Deseas ingresar los datos manualmente?"):
-                    entrada_nombre.focus()
-                return
-            
-            nombre_completo = datos.get("nombre_completo", "")
-            if nombre_completo:
+            resultado = consultar_dni_reniec(dni)
+            if resultado.get("success"):
                 entrada_nombre.delete(0, tk.END)
-                entrada_nombre.insert(0, nombre_completo)
+                entrada_nombre.insert(0, resultado.get("nombre_completo", ""))
                 entrada_nombre.config(bg="#F0FDF4")
-                messagebox.showinfo("✅ Éxito", f"Datos encontrados:\n{nombre_completo}")
+                messagebox.showinfo("✅ Éxito", f"Datos encontrados:\n{resultado.get('nombre_completo')}")
+            else:
+                messagebox.showerror("Error", resultado.get("error", "Error desconocido"))
         
         tk.Button(marco, text="🔍 Buscar", bg="#2563EB", fg="white",
-                  font=("Segoe UI", 10, "bold"), padx=10, command=buscar_datos).grid(row=0, column=2, padx=8, pady=8)
-        
-        def mostrar_dnis():
-            dnis = "\n".join([f"• {dni}: {datos['nombre_completo']}" for dni, datos in BASE_DATOS_PRUEBA.items()])
-            messagebox.showinfo("DNIs disponibles", 
-                f"DNIs en la base de datos:\n\n{dnis}\n\n"
-                f"Total: {len(BASE_DATOS_PRUEBA)} DNIs")
-        
-        tk.Button(marco, text="📋 Ver todos", bg="#8B5CF6", fg="white",
-                  font=("Segoe UI", 9), padx=8, command=mostrar_dnis).grid(row=0, column=5, padx=5, pady=8)
+                  font=("Segoe UI", 10, "bold"), padx=10, command=buscar_dni).grid(row=0, column=2, padx=8, pady=8)
         
         # Nombre
-        tk.Label(marco, text="Nombre Completo:", font=("Segoe UI", 11, "bold"),
-                 fg="white", bg=self.color_pestaña).grid(row=1, column=0, padx=5, pady=8, sticky="e")
+        tk.Label(marco, text="Nombre:", font=("Segoe UI", 11, "bold"),
+                 fg="white", bg="#1E293B").grid(row=1, column=0, padx=5, pady=8, sticky="e")
         
         entrada_nombre = tk.Entry(marco, width=35, font=("Segoe UI", 12))
-        entrada_nombre.grid(row=1, column=1, columnspan=3, padx=5, pady=8)
+        entrada_nombre.grid(row=1, column=1, columnspan=2, padx=5, pady=8)
         self.entrada_nombre = entrada_nombre
         
         # Teléfono
         tk.Label(marco, text="Teléfono:", font=("Segoe UI", 11, "bold"),
-                 fg="white", bg=self.color_pestaña).grid(row=2, column=0, padx=5, pady=8, sticky="e")
+                 fg="white", bg="#1E293B").grid(row=2, column=0, padx=5, pady=8, sticky="e")
         
         entrada_telefono = tk.Entry(marco, width=15, font=("Segoe UI", 12))
         entrada_telefono.grid(row=2, column=1, padx=5, pady=8)
@@ -1371,7 +705,7 @@ class SistemaLogisticoCiva:
         
         # Destino
         tk.Label(marco, text="Destino:", font=("Segoe UI", 11, "bold"),
-                 fg="white", bg=self.color_pestaña).grid(row=2, column=2, padx=5, pady=8, sticky="e")
+                 fg="white", bg="#1E293B").grid(row=2, column=2, padx=5, pady=8, sticky="e")
         
         var_destino = tk.StringVar()
         var_destino.set("Lima")
@@ -1381,14 +715,15 @@ class SistemaLogisticoCiva:
         self.var_destino = var_destino
         
         # Asiento
-        tk.Label(marco, text="N° Asiento:", font=("Segoe UI", 11, "bold"),
-                 fg="white", bg=self.color_pestaña).grid(row=3, column=0, padx=5, pady=8, sticky="e")
+        tk.Label(marco, text="Asiento:", font=("Segoe UI", 11, "bold"),
+                 fg="white", bg="#1E293B").grid(row=3, column=0, padx=5, pady=8, sticky="e")
         
         entrada_asiento = tk.Entry(marco, width=12, font=("Segoe UI", 12))
         entrada_asiento.grid(row=3, column=1, padx=5, pady=8)
         self.entrada_asiento = entrada_asiento
         
-        marco_botones = tk.Frame(self.area_principal, bg=self.color_pestaña)
+        # Botones
+        marco_botones = tk.Frame(self.area_principal, bg="#1E293B")
         marco_botones.pack(pady=15)
         
         def registrar():
@@ -1406,358 +741,227 @@ class SistemaLogisticoCiva:
                 messagebox.showwarning("Aviso", "El DNI debe tener 8 dígitos")
                 return
             
-            # Verificar duplicado
             for p in self.pasajeros:
                 if p.dni == dni:
                     messagebox.showwarning("Aviso", "Ese DNI ya está registrado")
-                    self.pasajero_seleccionado = p
-                    entrada_nombre.config(bg="#FDE68A")
                     return
             
             pasajero = Pasajero(dni, nombre, telefono, destino, asiento)
             self.pasajeros.append(pasajero)
-            self.pasajero_seleccionado = pasajero
-            self.actualizar_lista_pasajeros()
-            self.historial.append(f"✅ Pasajero registrado: {dni} - {nombre}")
+            self.historial.append(f"✅ Pasajero registrado: {nombre}")
             
-            entrada_nombre.config(bg="#FDE68A")
+            entrada_dni.delete(0, tk.END)
+            entrada_nombre.delete(0, tk.END)
+            entrada_nombre.config(bg="white")
+            entrada_telefono.delete(0, tk.END)
+            entrada_asiento.delete(0, tk.END)
             
-            messagebox.showinfo("✅ Éxito", 
-                f"Pasajero registrado correctamente\n\n"
-                f"Nombre: {nombre}\n"
-                f"DNI: {dni}\n\n"
-                f"Ahora puedes imprimir su boleto o factura.")
+            messagebox.showinfo("✅ Éxito", f"Pasajero {nombre} registrado correctamente")
+            self.actualizar_lista()
         
         tk.Button(marco_botones, text="✅ Registrar", bg="#10B981", fg="white",
                   font=("Segoe UI", 11, "bold"), padx=20, pady=8, command=registrar).grid(row=0, column=0, padx=10)
         
-        def seleccionar_pasajero_click(dni):
-            """Carga los datos del pasajero seleccionado al hacer clic"""
-            for p in self.pasajeros:
-                if p.dni == dni:
-                    entrada_dni.delete(0, tk.END)
-                    entrada_dni.insert(0, p.dni)
-                    entrada_nombre.delete(0, tk.END)
-                    entrada_nombre.insert(0, p.nombre)
-                    entrada_telefono.delete(0, tk.END)
-                    entrada_telefono.insert(0, p.telefono)
-                    var_destino.set(p.destino)
-                    entrada_asiento.delete(0, tk.END)
-                    entrada_asiento.insert(0, p.asiento)
-                    entrada_nombre.config(bg="#FDE68A")
-                    self.pasajero_seleccionado = p
-                    messagebox.showinfo("✅ Seleccionado", 
-                        f"Pasajero cargado:\n{p.nombre}\n\nYa puedes imprimir su boleto o factura.")
-                    break
+        # Lista
+        tk.Label(self.area_principal, text="📋 Lista de Pasajeros",
+                 font=("Segoe UI", 13, "bold"), fg="white", bg="#1E293B").pack(pady=(20, 5))
         
-        # ===== BOTÓN BOLETO =====
-        def imprimir_boleta_pasajero():
-            pasajero_actual = self.pasajero_seleccionado
-            
-            if not pasajero_actual:
-                dni = entrada_dni.get().strip()
-                if len(dni) != 8:
-                    messagebox.showwarning("Aviso", "Primero busca o registra un pasajero, o selecciona uno de la lista")
-                    return
-                
-                for p in self.pasajeros:
-                    if p.dni == dni:
-                        pasajero_actual = p
-                        self.pasajero_seleccionado = p
-                        break
-            
-            if not pasajero_actual:
-                messagebox.showwarning("Aviso", "No hay pasajero seleccionado.\n\nBusca un DNI, registra un pasajero, o haz clic en uno de la lista.")
-                return
-            
-            destino = var_destino.get()
-            mostrar_boleta(pasajero_actual, "Lima", destino)
+        self.lista = tk.Listbox(self.area_principal, width=80, height=10, font=("Segoe UI", 10))
+        self.lista.pack(pady=5)
+        self.actualizar_lista()
+    
+    def actualizar_lista(self):
+        self.lista.delete(0, tk.END)
+        for p in self.pasajeros:
+            self.lista.insert(tk.END, f"{p.dni} - {p.nombre} - {p.destino}")
+    
+    def cargar_boletos(self):
+        self.limpiar_area()
         
-        tk.Button(marco_botones, text="🎫 Boleto", command=imprimir_boleta_pasajero,
-                  bg="#8B5CF6", fg="white", font=("Segoe UI", 11, "bold"), 
-                  padx=20, pady=8).grid(row=0, column=3, padx=10)
+        tk.Label(self.area_principal, text="🎫 GENERAR BOLETO",
+                 font=("Segoe UI", 22, "bold"), fg="white", bg="#1E293B").pack(pady=15)
         
-        # ===== BOTÓN FACTURA =====
-        def generar_factura_pasajero():
-            pasajero_actual = self.pasajero_seleccionado
-            
-            if not pasajero_actual:
-                dni = entrada_dni.get().strip()
-                if len(dni) != 8:
-                    messagebox.showwarning("Aviso", "Primero busca o registra un pasajero, o selecciona uno de la lista")
-                    return
-                
-                for p in self.pasajeros:
-                    if p.dni == dni:
-                        pasajero_actual = p
-                        self.pasajero_seleccionado = p
-                        break
-            
-            if not pasajero_actual:
-                messagebox.showwarning("Aviso", "No hay pasajero seleccionado.\n\nBusca un DNI, registra un pasajero, o haz clic en uno de la lista.")
-                return
-            
-            destino = var_destino.get()
-            asiento = entrada_asiento.get().strip() or pasajero_actual.asiento
-            
-            servicio_var = tk.StringVar(value="Económico")
-            servicio_window = tk.Toplevel(self.root)
-            servicio_window.title("Tipo de Servicio")
-            servicio_window.geometry("300x220")
-            servicio_window.transient(self.root)
-            servicio_window.grab_set()
-            servicio_window.configure(bg="#1E293B")
-            
-            tk.Label(servicio_window, text="Selecciona el tipo de servicio:", 
-                     font=("Segoe UI", 11), fg="#F8FAFC", bg="#1E293B").pack(pady=20)
-            
-            tk.Radiobutton(servicio_window, text="Económico", variable=servicio_var, 
-                           value="Económico", bg="#1E293B", fg="#F8FAFC",
-                           selectcolor="#0F172A").pack(pady=5)
-            tk.Radiobutton(servicio_window, text="Premium (+30%)", variable=servicio_var, 
-                           value="Premium", bg="#1E293B", fg="#F8FAFC",
-                           selectcolor="#0F172A").pack(pady=5)
-            
-            def confirmar_servicio():
-                servicio_window.destroy()
-                mostrar_factura(pasajero_actual, "Lima", destino, asiento, 
-                               servicio=servicio_var.get())
-            
-            tk.Button(servicio_window, text="🧾 Generar Factura", command=confirmar_servicio,
-                      bg="#8B5CF6", fg="white", font=("Segoe UI", 10, "bold"), 
-                      padx=20, pady=8).pack(pady=20)
-        
-        tk.Button(marco_botones, text="🧾 Factura", command=generar_factura_pasajero,
-                  bg="#8B5CF6", fg="white", font=("Segoe UI", 11, "bold"), 
-                  padx=20, pady=8).grid(row=0, column=4, padx=10)
-        
-        # ===== BOTÓN ELIMINAR =====
-        def eliminar():
-            dni = entrada_dni.get().strip()
-            if len(dni) != 8:
-                messagebox.showwarning("Aviso", "Escribe un DNI de 8 dígitos")
-                return
-            for i, p in enumerate(self.pasajeros):
-                if p.dni == dni:
-                    if messagebox.askyesno("Confirmar", f"¿Eliminar a {p.nombre}?"):
-                        del self.pasajeros[i]
-                        self.pasajero_seleccionado = None
-                        self.actualizar_lista_pasajeros()
-                        self.historial.append(f"🗑️ Pasajero eliminado: {dni} - {p.nombre}")
-                        entrada_dni.delete(0, tk.END)
-                        entrada_nombre.delete(0, tk.END)
-                        entrada_nombre.config(bg="white")
-                        entrada_telefono.delete(0, tk.END)
-                        entrada_asiento.delete(0, tk.END)
-                        messagebox.showinfo("✅ Eliminado", "Pasajero eliminado")
-                    return
-            messagebox.showinfo("ℹ️ Aviso", "DNI no encontrado")
-        
-        tk.Button(marco_botones, text="🗑️ Eliminar", bg="#EF4444", fg="white",
-                  font=("Segoe UI", 11, "bold"), padx=20, pady=8, command=eliminar).grid(row=0, column=2, padx=10)
-        
-        # ===== LISTA DE PASAJEROS =====
-        tk.Label(self.area_principal, text="📋 Lista de Pasajeros Registrados (Haz clic para seleccionar)",
-                 font=("Segoe UI", 13, "bold"), fg="white", bg=self.color_pestaña).pack(pady=(20, 5))
-        
-        frame_lista_scroll = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame_lista_scroll.pack(pady=5, fill="x", padx=40)
-        
-        canvas_lista = tk.Canvas(frame_lista_scroll, bg="white", height=150, highlightthickness=0)
-        scrollbar_lista = tk.Scrollbar(frame_lista_scroll, orient="vertical", command=canvas_lista.yview)
-        
-        marco_lista = tk.Frame(canvas_lista, bg="white")
-        marco_lista.bind(
-            "<Configure>",
-            lambda e: canvas_lista.configure(scrollregion=canvas_lista.bbox("all"))
-        )
-        
-        canvas_lista.create_window((0, 0), window=marco_lista, anchor="nw")
-        canvas_lista.configure(yscrollcommand=scrollbar_lista.set)
-        
-        canvas_lista.pack(side="left", fill="both", expand=True)
-        scrollbar_lista.pack(side="right", fill="y")
-        
-        # Encabezados
-        tk.Label(marco_lista, text="DNI", font=("Segoe UI", 10, "bold"), bg="#E5E7EB", width=12, relief="ridge").grid(row=0, column=0, padx=1, pady=2, sticky="ew")
-        tk.Label(marco_lista, text="NOMBRE COMPLETO", font=("Segoe UI", 10, "bold"), bg="#E5E7EB", width=40, relief="ridge").grid(row=0, column=1, padx=1, pady=2, sticky="ew")
-        tk.Label(marco_lista, text="DESTINO", font=("Segoe UI", 10, "bold"), bg="#E5E7EB", width=15, relief="ridge").grid(row=0, column=2, padx=1, pady=2, sticky="ew")
-        tk.Label(marco_lista, text="ASIENTO", font=("Segoe UI", 10, "bold"), bg="#E5E7EB", width=10, relief="ridge").grid(row=0, column=3, padx=1, pady=2, sticky="ew")
-        
-        self.marco_lista_pasajeros = marco_lista
-        self.actualizar_lista_pasajeros()
-
-    def actualizar_lista_pasajeros(self):
-        """Actualiza la lista de pasajeros con clic para seleccionar"""
-        if not hasattr(self, 'marco_lista_pasajeros') or not self.marco_lista_pasajeros:
+        if not self.pasajeros:
+            tk.Label(self.area_principal, text="⚠️ Primero registra un pasajero",
+                     font=("Segoe UI", 14), fg="#FCD34D", bg="#1E293B").pack(pady=30)
             return
         
-        for widget in self.marco_lista_pasajeros.winfo_children():
-            fila = widget.grid_info().get('row', 0)
-            if fila > 0:
-                widget.destroy()
+        tk.Label(self.area_principal, text="Selecciona un pasajero:", 
+                 font=("Segoe UI", 12), fg="white", bg="#1E293B").pack()
         
-        fila = 1
-        for p in self.pasajeros:
-            btn_dni = tk.Button(self.marco_lista_pasajeros, text=p.dni, 
-                               font=("Segoe UI", 9), bg="white", width=12,
-                               relief="flat", cursor="hand2",
-                               command=lambda dni=p.dni: self.seleccionar_pasajero_click(dni))
-            btn_dni.grid(row=fila, column=0, padx=1, pady=1, sticky="ew")
+        opciones = [f"{p.dni} - {p.nombre}" for p in self.pasajeros]
+        var_seleccion = tk.StringVar()
+        var_seleccion.set(opciones[0])
+        
+        menu = tk.OptionMenu(self.area_principal, var_seleccion, *opciones)
+        menu.config(width=30, font=("Segoe UI", 10))
+        menu.pack(pady=10)
+        
+        def generar():
+            seleccion = var_seleccion.get()
+            dni = seleccion.split(" - ")[0]
+            pasajero = None
+            for p in self.pasajeros:
+                if p.dni == dni:
+                    pasajero = p
+                    break
             
-            btn_nombre = tk.Button(self.marco_lista_pasajeros, text=p.nombre[:28], 
-                                  font=("Segoe UI", 9), bg="white", width=40,
-                                  relief="flat", cursor="hand2", anchor="w",
-                                  command=lambda dni=p.dni: self.seleccionar_pasajero_click(dni))
-            btn_nombre.grid(row=fila, column=1, padx=1, pady=1, sticky="ew")
-            
-            tk.Label(self.marco_lista_pasajeros, text=p.destino, 
-                    font=("Segoe UI", 9), bg="white", width=15).grid(row=fila, column=2, padx=1, pady=1)
-            
-            tk.Label(self.marco_lista_pasajeros, text=str(p.asiento) if p.asiento else "-", 
-                    font=("Segoe UI", 9), bg="white", width=10).grid(row=fila, column=3, padx=1, pady=1)
-            fila += 1
-
-    def seleccionar_pasajero_click(self, dni):
-        """Carga los datos del pasajero seleccionado al hacer clic"""
-        for p in self.pasajeros:
-            if p.dni == dni:
-                if hasattr(self, 'entrada_dni') and self.entrada_dni:
-                    self.entrada_dni.delete(0, tk.END)
-                    self.entrada_dni.insert(0, p.dni)
-                if hasattr(self, 'entrada_nombre') and self.entrada_nombre:
-                    self.entrada_nombre.delete(0, tk.END)
-                    self.entrada_nombre.insert(0, p.nombre)
-                    self.entrada_nombre.config(bg="#FDE68A")
-                if hasattr(self, 'entrada_telefono') and self.entrada_telefono:
-                    self.entrada_telefono.delete(0, tk.END)
-                    self.entrada_telefono.insert(0, p.telefono)
-                if hasattr(self, 'var_destino') and self.var_destino:
-                    self.var_destino.set(p.destino)
-                if hasattr(self, 'entrada_asiento') and self.entrada_asiento:
-                    self.entrada_asiento.delete(0, tk.END)
-                    self.entrada_asiento.insert(0, p.asiento)
-                
-                self.pasajero_seleccionado = p
-                messagebox.showinfo("✅ Seleccionado", 
-                    f"Pasajero cargado:\n{p.nombre}\n\nYa puedes imprimir su boleto o factura.")
-                break
-
-    # ==============================================
-    # REPORTES Y HISTORIAL
-    # ==============================================
+            if pasajero:
+                destino = pasajero.destino or "No especificado"
+                mostrar_boleta_ticket(pasajero, "Lima", destino)
+        
+        tk.Button(self.area_principal, text="🎫 Generar Boleto", 
+                  command=generar,
+                  bg="#8B5CF6", fg="white", font=("Segoe UI", 12, "bold"),
+                  padx=30, pady=10).pack(pady=20)
     
-    def cargar_pantalla_reportes(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="📊 REPORTES",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
-
-        frame_stats = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        frame_stats.pack(pady=10)
-
-        total = len(self.pasajeros)
-        tk.Label(frame_stats, text=f"👥 Total Pasajeros: {total}", 
-                font=("Arial", 14, "bold"), fg="#60A5FA", bg=self.color_pestaña).grid(row=0, column=0, padx=30)
-
-        if self.asientos:
-            libres = sum(1 for a in self.asientos if a.estado == "libre")
-            ocupados = len(self.asientos) - libres
-            tk.Label(frame_stats, text=f"💺 Asientos Ocupados: {ocupados}/{len(self.asientos)}", 
-                    font=("Arial", 14, "bold"), fg="#FCD34D", bg=self.color_pestaña).grid(row=0, column=1, padx=30)
-
-        caja_lista = tk.Text(self.area_principal, width=90, height=20, font=("Arial", 10))
-        caja_lista.pack(pady=10)
-
-        def actualizar_lista():
-            caja_lista.delete("1.0", tk.END)
-            if not self.pasajeros:
-                caja_lista.insert(tk.END, "⚠️ No hay pasajeros registrados aún.\n")
-                caja_lista.insert(tk.END, "📝 Registra un pasajero y aparecerá aquí.\n")
-            else:
-                caja_lista.insert(tk.END, f"{'DNI':<12} | {'NOMBRE':<30} | {'ASIENTO':<10} | {'DESTINO':<15} | {'TELÉFONO':<12} | {'FECHA'}\n")
-                caja_lista.insert(tk.END, "-" * 100 + "\n")
-                for p in self.pasajeros:
-                    caja_lista.insert(tk.END, 
-                        f"{p.dni:<12} | {p.nombre[:28]:<30} | {str(p.asiento) if p.asiento else '-':<10} | {p.destino:<15} | {p.telefono:<12} | {p.fecha_registro}\n")
+    def cargar_facturas(self):
+        self.limpiar_area()
         
-        actualizar_lista()
+        tk.Label(self.area_principal, text="🧾 GENERAR FACTURA",
+                 font=("Segoe UI", 22, "bold"), fg="white", bg="#1E293B").pack(pady=15)
         
-        marco_botones = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        marco_botones.pack(pady=5)
+        if not self.pasajeros:
+            tk.Label(self.area_principal, text="⚠️ Primero registra un pasajero",
+                     font=("Segoe UI", 14), fg="#FCD34D", bg="#1E293B").pack(pady=30)
+            return
         
-        tk.Button(marco_botones, text="🔄 Actualizar", command=actualizar_lista,
-                  bg="#2563EB", fg="white", font=("Arial", 10, "bold"), padx=15, pady=5).grid(row=0, column=0, padx=5)
+        tk.Label(self.area_principal, text="Selecciona un pasajero:", 
+                 font=("Segoe UI", 12), fg="white", bg="#1E293B").pack()
         
-        def exportar_reporte():
-            if not self.pasajeros:
-                messagebox.showinfo("Aviso", "No hay datos para exportar")
-                return
+        opciones = [f"{p.dni} - {p.nombre}" for p in self.pasajeros]
+        var_seleccion = tk.StringVar()
+        var_seleccion.set(opciones[0])
+        
+        menu = tk.OptionMenu(self.area_principal, var_seleccion, *opciones)
+        menu.config(width=30, font=("Segoe UI", 10))
+        menu.pack(pady=10)
+        
+        frame_opciones = tk.Frame(self.area_principal, bg="#1E293B")
+        frame_opciones.pack(pady=10)
+        
+        tk.Label(frame_opciones, text="Servicio:", font=("Segoe UI", 11),
+                 fg="white", bg="#1E293B").grid(row=0, column=0, padx=10)
+        var_servicio = tk.StringVar()
+        var_servicio.set("Económico")
+        tk.OptionMenu(frame_opciones, var_servicio, "Económico", "Premium").grid(row=0, column=1)
+        
+        tk.Label(frame_opciones, text="Método de Pago:", font=("Segoe UI", 11),
+                 fg="white", bg="#1E293B").grid(row=0, column=2, padx=10)
+        var_pago = tk.StringVar()
+        var_pago.set("Efectivo")
+        tk.OptionMenu(frame_opciones, var_pago, "Efectivo", "Tarjeta", "Yape", "Plin").grid(row=0, column=3)
+        
+        def generar():
+            seleccion = var_seleccion.get()
+            dni = seleccion.split(" - ")[0]
+            pasajero = None
+            for p in self.pasajeros:
+                if p.dni == dni:
+                    pasajero = p
+                    break
             
-            try:
-                filename = f"reporte_pasajeros_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write("="*80 + "\n")
-                    f.write("REPORTE DE PASAJEROS - CIVA TRANSPORTES\n")
-                    f.write(f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n")
-                    f.write("="*80 + "\n\n")
-                    f.write(f"{'DNI':<12} | {'NOMBRE':<35} | {'DESTINO':<15} | {'ASIENTO':<8} | {'TELÉFONO'}\n")
-                    f.write("-"*80 + "\n")
-                    for p in self.pasajeros:
-                        f.write(f"{p.dni:<12} | {p.nombre[:33]:<35} | {p.destino:<15} | {str(p.asiento) if p.asiento else '-':<8} | {p.telefono}\n")
-                    f.write("\n" + "="*80 + "\n")
-                    f.write(f"TOTAL PASAJEROS: {len(self.pasajeros)}\n")
-                messagebox.showinfo("✅ Éxito", f"Reporte exportado como:\n{filename}")
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo exportar: {str(e)}")
+            if pasajero:
+                destino = pasajero.destino or "No especificado"
+                asiento = str(pasajero.asiento) if pasajero.asiento else ""
+                mostrar_factura_ticket(pasajero, "Lima", destino, asiento, 
+                                       servicio=var_servicio.get(), metodo_pago=var_pago.get())
         
-        tk.Button(marco_botones, text="📥 Exportar Reporte", command=exportar_reporte,
-                  bg="#10B981", fg="white", font=("Arial", 10, "bold"), padx=15, pady=5).grid(row=0, column=1, padx=5)
-
-    def cargar_pantalla_historial(self):
-        self.limpiar_area_principal()
-        tk.Label(self.area_principal, text="📜 HISTORIAL DE OPERACIONES",
-                 font=("Arial", 20, "bold"), fg="white", bg=self.color_pestaña).pack(pady=20)
-
-        caja_historial = tk.Text(self.area_principal, width=90, height=20, font=("Arial", 10))
-        caja_historial.pack(pady=10)
-
-        def actualizar_historial():
-            caja_historial.delete("1.0", tk.END)
-            if not self.historial:
-                caja_historial.insert(tk.END, "ℹ️ Aún no hay registros en el historial.\n")
-            else:
-                for i, registro in enumerate(reversed(self.historial), 1):
-                    caja_historial.insert(tk.END, f"{i:>3}. {registro}\n")
-
-        actualizar_historial()
-
-        def limpiar_historial():
-            if messagebox.askyesno("Confirmar", "¿Borrar todo el historial?"):
-                self.historial.clear()
-                actualizar_historial()
-                messagebox.showinfo("✅", "Historial eliminado")
-
-        marco_botones = tk.Frame(self.area_principal, bg=self.color_pestaña)
-        marco_botones.pack(pady=5)
-        tk.Button(marco_botones, text="🔄 Actualizar", command=actualizar_historial,
-                  bg="#2563EB", fg="white", font=("Arial", 10, "bold"), padx=15, pady=5).grid(row=0, column=0, padx=5)
-        tk.Button(marco_botones, text="🗑️ Limpiar Historial", command=limpiar_historial,
-                  bg="#EF4444", fg="white", font=("Arial", 10, "bold"), padx=15, pady=5).grid(row=0, column=1, padx=5)
-
-    def cargar_datos_prueba(self):
-        if Asiento:
-            self.asientos = [Asiento(i+1, 35) for i in range(40)]
+        tk.Button(self.area_principal, text="🧾 Generar Factura", 
+                  command=generar,
+                  bg="#8B5CF6", fg="white", font=("Segoe UI", 12, "bold"),
+                  padx=30, pady=10).pack(pady=20)
+    
+    def cargar_reportes(self):
+        self.limpiar_area()
+        
+        tk.Label(self.area_principal, text="📊 REPORTES",
+                 font=("Segoe UI", 22, "bold"), fg="white", bg="#1E293B").pack(pady=15)
+        
+        col1 = tk.Frame(self.area_principal, bg="#1E293B")
+        col1.pack(side="left", expand=True, fill="both", padx=10)
+        col2 = tk.Frame(self.area_principal, bg="#1E293B")
+        col2.pack(side="left", expand=True, fill="both", padx=10)
+        col3 = tk.Frame(self.area_principal, bg="#1E293B")
+        col3.pack(side="left", expand=True, fill="both", padx=10)
+        
+        tk.Label(col1, text=f"👥 {len(self.pasajeros)}", 
+                 font=("Segoe UI", 24, "bold"), fg="#60A5FA", bg="#1E293B").pack()
+        tk.Label(col1, text="Pasajeros", font=("Segoe UI", 12), fg="#94A3B8", bg="#1E293B").pack()
+        
+        tk.Label(col2, text=f"🎫 {len([h for h in self.historial if 'boleto' in h.lower()])}", 
+                 font=("Segoe UI", 24, "bold"), fg="#FCD34D", bg="#1E293B").pack()
+        tk.Label(col2, text="Boletos", font=("Segoe UI", 12), fg="#94A3B8", bg="#1E293B").pack()
+        
+        tk.Label(col3, text=f"🧾 {len([h for h in self.historial if 'factura' in h.lower()])}", 
+                 font=("Segoe UI", 24, "bold"), fg="#10B981", bg="#1E293B").pack()
+        tk.Label(col3, text="Facturas", font=("Segoe UI", 12), fg="#94A3B8", bg="#1E293B").pack()
 
 # ==============================================
-# EJECUCIÓN
+# FUNCIONES DE LOGIN
+# ==============================================
+
+def mostrar_login(al_ingresar):
+    ventana = tk.Tk()
+    ventana.title("Inicio de Sesión - Civa")
+    ventana.geometry("400x420")
+    ventana.resizable(False, False)
+    ventana.configure(bg="#0F172A")
+    
+    x = (ventana.winfo_screenwidth() // 2) - 200
+    y = (ventana.winfo_screenheight() // 2) - 210
+    ventana.geometry(f"400x420+{x}+{y}")
+    
+    tk.Label(ventana, text="🚌 Sistema Logístico Civa", 
+             font=("Segoe UI", 16, "bold"), fg="#F8FAFC", bg="#0F172A").pack(pady=(40, 10))
+    tk.Label(ventana, text="Inicia sesión para continuar", 
+             font=("Segoe UI", 10), fg="#94A3B8", bg="#0F172A").pack(pady=(0, 30))
+    
+    marco = tk.Frame(ventana, bg="#0F172A")
+    marco.pack(pady=10)
+    
+    tk.Label(marco, text="Correo electrónico:", font=("Segoe UI", 11),
+             fg="#F8FAFC", bg="#0F172A").grid(row=0, column=0, sticky="w", pady=5)
+    entrada_correo = tk.Entry(marco, width=35, font=("Segoe UI", 11))
+    entrada_correo.grid(row=1, column=0, pady=5)
+    entrada_correo.insert(0, "admin@civa.com")
+    
+    tk.Label(marco, text="Contraseña:", font=("Segoe UI", 11),
+             fg="#F8FAFC", bg="#0F172A").grid(row=2, column=0, sticky="w", pady=(15, 5))
+    entrada_contraseña = tk.Entry(marco, width=35, show="•", font=("Segoe UI", 11))
+    entrada_contraseña.grid(row=3, column=0, pady=5)
+    entrada_contraseña.insert(0, "123456")
+    
+    def verificar():
+        correo = entrada_correo.get().strip()
+        clave = entrada_contraseña.get().strip()
+        
+        if correo in USUARIOS and USUARIOS[correo]["clave_hash"] == cifrar_clave(clave):
+            ventana.destroy()
+            al_ingresar()
+        else:
+            messagebox.showerror("Error", "Correo o contraseña incorrectos")
+    
+    tk.Button(ventana, text="🚪 Iniciar Sesión", 
+              command=verificar,
+              bg="#2563EB", fg="white", font=("Segoe UI", 11, "bold"),
+              padx=40, pady=10, relief="flat").pack(pady=30)
+    
+    tk.Label(ventana, text="Demo: admin@civa.com / 123456",
+             font=("Segoe UI", 9), fg="#64748B", bg="#0F172A").pack()
+    
+    ventana.mainloop()
+
+# ==============================================
+# MAIN
 # ==============================================
 
 def main():
-    def iniciar_sistema():
+    def iniciar():
         app = SistemaLogisticoCiva()
         app.root.mainloop()
-
-    mostrar_pantalla_login(iniciar_sistema)
+    
+    mostrar_login(iniciar)
 
 if __name__ == "__main__":
     main()
